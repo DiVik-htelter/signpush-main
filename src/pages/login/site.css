@@ -1,0 +1,388 @@
+* {
+  box-sizing: unset;
+  -webkit-box-sizing: unset;
+  -moz-box-sizing: unset;
+}
+* :before {
+  box-sizing: unset;
+  -webkit-box-sizing: unset;
+  -moz-box-sizing: unset;
+}
+* :after {
+  box-sizing: unset;
+  -webkit-box-sizing: unset;
+  -moz-box-sizing: unset;
+}
+.alert {
+  margin-top: 90px;
+}
+p {
+  display: block;
+  margin: 0;
+}
+a:active,
+a:hover,
+a:focus {
+  text-decoration: none;
+  outline: 0;
+}
+#esia-form .form-group {
+  display: flex;
+  justify-content: center;
+  align-content: center;
+}
+@media (max-width: 1440px) {
+  #esia-form input {
+    font-size: 16px;
+    padding: 5px;
+  }
+}
+@media (max-width: 425px) {
+  #esia-form input {
+    font-size: 14px;
+    padding: 5px;
+  }
+}
+.btn:focus,
+.btn:active:focus,
+.btn.active:focus,
+.btn.focus,
+.btn:active.focus,
+.btn.active.focus {
+  outline: none;
+}
+.modal-login-sign {
+  display: table;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-height: 310px;
+  max-width: 290px;
+  padding: 0 !important;
+  position: fixed;
+  bottom: 0;
+  right: 0;
+}
+.modal-login-sign .modal-login-header {
+  padding: 15px 15px;
+  border-top-right-radius: 4px;
+  border-top-left-radius: 4px;
+  border-bottom: 1px solid #e5e5e5;
+  background-color: #286090;
+}
+.modal-login-sign .modal-login-header .close {
+  margin-top: -7px;
+  color: white;
+  font-size: 25px;
+  font-weight: 300;
+}
+.modal-login-dialog.modal-login-sm {
+  margin: 0;
+  width: 100%;
+}
+.modal-login-content {
+  width: 100%;
+  border: 0;
+}
+.text-modal-wait {
+  color: #999;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+#sign-in-form {
+  margin-bottom: 0;
+}
+#sign-verification {
+  margin-top: 5%;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 300px;
+}
+.email-input-container input {
+  font-size: 18px;
+  padding: 10px 0 10px 10px;
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #e5e5e5;
+  margin-top: 25px;
+}
+.email-input-container input:focus {
+  outline: none;
+}
+.email-input-container input:focus ~ .highlight {
+  -webkit-animation: inputHighlighter 0.3s ease;
+  -moz-animation: inputHighlighter 0.3s ease;
+  animation: inputHighlighter 0.3s ease;
+}
+.email-input-container input:focus ~ .form-label {
+  top: -20px;
+  font-size: 12px;
+  color: #999;
+}
+.email-input-container input:not(:focus):valid ~ .form-label {
+  top: -20px;
+  font-size: 12px;
+  color: #999;
+}
+.email-input-container input:not(:placeholder-shown) ~ .form-label {
+  top: -20px;
+  font-size: 12px;
+  color: #999;
+}
+.email-input-container {
+  font-family: 'Roboto', sans-serif;
+  display: block;
+  background: #FFF;
+  padding-left: 10px;
+}
+.email-input-container .group {
+  position: relative;
+  margin-bottom: 0;
+}
+.email-input-container .group label {
+  position: absolute;
+}
+.email-input-container .form-actions {
+  margin-top: 5px;
+  background-color: #FFF;
+  width: 230px;
+  margin-bottom: 0;
+}
+.email-input-container label {
+  color: #999;
+  font-size: 14px;
+  font-weight: normal;
+  pointer-events: none;
+  left: 1px;
+  top: 18px;
+  transition: 0.2s ease all;
+  -moz-transition: 0.2s ease all;
+  -webkit-transition: 0.2s ease all;
+}
+.email-input-container .bar {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.email-input-container .bar :before {
+  content: '';
+  height: 2px;
+  width: 0;
+  bottom: 1px;
+  position: absolute;
+  background: #999;
+  transition: 0.2s ease all;
+  -moz-transition: 0.2s ease all;
+  -webkit-transition: 0.2s ease all;
+}
+.email-input-container .bar :after {
+  content: '';
+  height: 2px;
+  width: 0;
+  bottom: 1px;
+  position: absolute;
+  background: #999;
+  transition: 0.2s ease all;
+  -moz-transition: 0.2s ease all;
+  -webkit-transition: 0.2s ease all;
+}
+.email-input-container .highlight {
+  position: absolute;
+  height: 60%;
+  width: 100px;
+  top: 25%;
+  left: 0;
+  pointer-events: none;
+  opacity: 0.5;
+}
+.email-input-container .btn-next {
+  margin-top: 0;
+  margin-bottom: 0;
+  width: 200px;
+  background-color: #DDDDDD;
+  background-image: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.modal-backdrop {
+  opacity: 0.3;
+}
+.modal-backdrop.fade.in {
+  opacity: 0.3;
+}
+#contact-form button.btn.btn-primary.send-button.btn.btn-primary {
+  color: #fff;
+  background-color: #337ab7;
+  border-color: #2e6da4;
+  background-image: none;
+  padding: 6px 12px;
+  width: 220px;
+  display: block;
+  margin: auto;
+}
+#contact-form .form-actions {
+  background-color: #ffffff;
+  border-top: 1px solid #ffffff;
+  padding: 0;
+}
+#contact-form .control-group {
+  text-align: center;
+}
+#contact-form .control-label {
+  width: 180px;
+  text-align: left;
+}
+#contact-form .controls {
+  margin-left: auto;
+}
+.checkbox-group {
+  height: 20px;
+  margin-top: 15px;
+}
+.checkbox-group input {
+  padding: 0;
+  width: auto;
+  margin: 0;
+}
+.checkbox-group label {
+  left: 0;
+  top: -10px !important;
+  pointer-events: auto;
+  position: relative !important;
+  display: inline;
+  float: left;
+}
+.check {
+  cursor: pointer;
+  position: relative;
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  -webkit-tap-highlight-color: transparent;
+  transform: translate3d(0, 0, 0);
+  padding-left: 10px;
+}
+.check :before {
+  content: "";
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(34, 50, 84, 0.03);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.check svg {
+  position: relative;
+  z-index: 1;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke: #c8ccd4;
+  stroke-width: 1.5;
+  transform: translate3d(0, 0, 0);
+  transition: all 0.2s ease;
+}
+.check svg path {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+}
+.check svg polyline {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 66;
+}
+.check :hover :before {
+  opacity: 1;
+}
+.check :hover svg {
+  stroke: #4285f4;
+}
+#cbx:checked + .check svg {
+  stroke: #4285f4;
+}
+#cbx:checked + .check svg path {
+  stroke-dashoffset: 60;
+  transition: all 0.3s linear;
+}
+#cbx:checked + .check svg polyline {
+  stroke-dashoffset: 42;
+  transition: all 0.2s linear;
+  transition-delay: 0.15s;
+}
+#login-form-modal {
+  padding: 0 !important;
+  border: 0;
+}
+.modal-login-body {
+  height: 100%;
+  padding: 0;
+}
+.center-block {
+  display: block;
+  margin-right: auto;
+  margin-left: auto;
+}
+.center-email-form {
+  width: 50%;
+  margin: auto;
+}
+.email-page {
+  text-align: center;
+}
+.email-page .col-lg-5 {
+  float: none;
+  margin: auto;
+}
+.email-page .description_title {
+  font-size: 40px;
+}
+@media (max-width: 425px) {
+  .email-page .description_title {
+    font-size: 16px;
+  }
+}
+.email-page .modal_body__text {
+  font-size: 16px;
+}
+@media (max-width: 425px) {
+  .email-page .modal_body__text {
+    font-size: 12px;
+  }
+}
+.email-page form .modal_input {
+  height: 60px;
+  margin-bottom: 25px;
+}
+@media (max-width: 425px) {
+  .email-page form .modal_input {
+    height: 40px;
+    margin-bottom: 10px;
+  }
+}
+.email-page form .modal-submit {
+  height: 60px;
+}
+@media (max-width: 425px) {
+  .email-page form .modal-submit {
+    height: 40px;
+    margin-top: 0;
+    font-size: 14px;
+  }
+}
+.email-page form .form-group {
+  margin-bottom: 15px;
+}
+@media (max-width: 425px) {
+  .email-page form .form-group {
+    margin-bottom: 5px;
+  }
+}
+.email-page input#resetpasswordform-password {
+  box-sizing: border-box;
+}

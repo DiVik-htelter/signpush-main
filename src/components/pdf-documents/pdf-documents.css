@@ -1,0 +1,15 @@
+.fileUpload {
+    display: none;
+}
+.file-upload-container {
+    float:right;
+    margin: 10px;
+}
+.hash-column {
+    max-width: 200px;
+    word-wrap:break-word;
+    overflow: hidden;
+}
+.action-button {
+    padding: 5px;
+}

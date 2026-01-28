@@ -1,0 +1,16 @@
+.navbar {
+    background: #343a40;
+}
+
+.login {
+    color: white;
+    padding-right:20px;
+}
+
+.logo {
+    padding-left: 20px;
+}
+
+.nav-link {
+    color: white!important;
+}
