@@ -6,7 +6,7 @@ import { DateTime } from "luxon";
 import PdfReader from "../pdf-reader/pdf-reader";
 import "./pdf-documents.css";
 
-// Компонент, который возвращает строчку в перечне загруженных документов
+// Компонент, который возвращает заголовок таблица и строчки в перечне загруженных документов
 // 
 function PdfDocuments() {
     const [fileList, setFileList] = useState([]);

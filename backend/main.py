@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from pydantic import BaseModel
 import time
+import database 
 
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,10 +25,6 @@ app.add_middleware(
     allow_methods=["*"],  # Разрешить все методы (GET, POST, etc.)
     allow_headers=["*"],  # Разрешить все заголовки
 )
-
-login = 'admin@gmail.com'
-password = 'adminadmin'
-
 newToken = None
 
 #print("хеш логина= " + str(hash('admin@gmail.com')))
@@ -42,10 +39,12 @@ newToken = None
 
 
 def chek_auth(c_login:str, c_password:str):
+  """ошибки при использовании бд не обрабатываются, нужно исправить"""
   try:
+    conect = database.connectToDB()
+    
     global newToken 
-    if login == c_login and password == c_password:
-
+    if database.checkDataInUsers(conect,c_login, c_password):
       timeToLogin = time.time()
       sumToData = c_login + c_password
       newToken = hash(str(timeToLogin) + sumToData)
@@ -64,6 +63,9 @@ def chek_auth(c_login:str, c_password:str):
         "status" : 4,
         "message": exept
     }
+  finally: 
+    database.closeConnect(conect)
+
   
 
 
