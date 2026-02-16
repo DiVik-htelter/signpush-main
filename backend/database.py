@@ -76,7 +76,7 @@ class Database:
             f"INSERT INTO users (login, password) VALUES ('{login}', '{password}');"
         )
         self.connection.commit()
-        print("[INFO] Data was successfully inserted")
+        print(f"[INFO] User {login} was successfully inserted")
 
 
 
@@ -98,3 +98,74 @@ class Database:
     except Exception as ex:
         print("[ERROR] Error in check_user:", ex)
         return False
+    
+  
+
+  def check_docs(self, login:str) -> tuple:
+    """
+    Публичный метод: вытаскивает все документу загруженные или отправленные конкретному пользователю
+    """
+    if not self.connection:
+      raise ConnectionError("No Activate database connection")
+    try:
+      with self.connection.cursor() as cursor: # нужно в дальнейшем добавить категории документов, подписан, необходимо подписать 
+        cursor.execute(f""" 
+            SELECT 
+                d.id,
+                d.title,
+                d.hash,
+                d.created_at,
+                d.base64,
+                u.login
+            FROM documents d
+            JOIN users u ON d.user_id = u.id
+            WHERE u.login = '{login}'          -- логин пользователя
+            ORDER BY d.created_at DESC;
+                       """) 
+        result = cursor.fetchone()
+      return result
+    except Exception as ex:
+      print("[ERROR] Error in check_docs:", ex)
+      
+
+
+  def insert_doc(self, title:str, hash:str, created_at:int, base64:str, user_id:int):
+    """
+    Публичный метод: добавление документа в бд
+    (Защита от SQL инъекций отсутствует)
+    """
+    if not self.connection:
+      raise ConnectionError("No Activate database connection")
+    try:
+      with self.connection.cursor() as cursor:
+        cursor.execute(f"""
+          INSERT INTO documents (title, hash, created_at, base64, user_id)
+          VALUES ({title}, {hash}, {created_at}, {base64}, {user_id});
+                       """) 
+        self.connection.commit()
+        print(f"[INFO] Document {title} was successfully inserted")
+        
+    except Exception as ex:
+      print("[ERROR] Error in insert_doc:", ex)
+
+
+
+
+
+  def delet_doc(self, id: int):
+    """
+    Публичный метод: удаляет документт по уникальному id
+    (Защита от SQL инъекций отсутствует)
+    """
+    if not self.connection:
+      raise ConnectionError("No Activate database connection")
+    try:
+      with self.connection.cursor() as cursor:
+        cursor.execute(f"""
+            DELETE FROM documents WHERE id = {id};
+                       """)
+        self.connection.commit() 
+        print(f"[INFO] Document id: {id}, deleted success")
+
+    except Exception as ex:
+      print("[ERROR] Error in delet_doc:", ex)

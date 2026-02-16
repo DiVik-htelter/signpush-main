@@ -4,12 +4,14 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from pydantic import BaseModel
 import time
-import database 
+from typing import List
+from database import Database 
 
 
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+db = Database()
 
 # Разрешенные источники
 origins = [
@@ -41,10 +43,10 @@ newToken = None
 def chek_auth(c_login:str, c_password:str):
   """ошибки при использовании бд не обрабатываются, нужно исправить"""
   try:
-    conect = database.connectToDB()
-    
+    db.connect()
+
     global newToken 
-    if database.checkDataInUsers(conect,c_login, c_password):
+    if db.check_user(c_login, c_password):
       timeToLogin = time.time()
       sumToData = c_login + c_password
       newToken = hash(str(timeToLogin) + sumToData)
@@ -64,7 +66,7 @@ def chek_auth(c_login:str, c_password:str):
         "message": exept
     }
   finally: 
-    database.closeConnect(conect)
+    db.close()
 
   
 
@@ -86,6 +88,49 @@ async def chek_login(old_user: oldUser):
 
   return JSONResponse(content=content, headers=headers)
 
+class Paper(BaseModel):
+  id:int
+  title: str
+  hash: str
+  created_at: int          # Unix timestamp в секундах
+  base64: str              # PDF в base64
+  login:str
+
+# Модель ответа
+class PapersResponse(BaseModel):
+  message: str             # строка вида "There are X papers"
+  papers: List[Paper]
+
+
+@app.get("/api/docs", response_model=PapersResponse)
+async def get_docs(login:str | None = None):
+  db.connect()
+  if login == None:
+    result = list(db.check_docs('admin@gmail.com'))
+    print("Запрос без параметров")
+  else: 
+    result = list(db.check_docs(str(login)))
+    print(login)
+
+
+  
+  db.close()
+  print(f"result: {result}\n\n\n\n")
+  total = len(result)
+  message =f"There are {total} paperes"
+
+  paper = Paper(
+      id=result[0],
+      title=result[1],
+      hash=result[2],          # .strip() удалит лишние пробелы, если они есть
+      created_at=result[3],
+      base64=result[4],
+      login=result[5]
+  )
+  # Оборачиваем в список (так как papers ожидает список документов)
+  papers_list = [paper]
+  
+  return PapersResponse(message=message, papers=papers_list)
 
 
 

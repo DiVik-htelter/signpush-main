@@ -14,7 +14,7 @@ function App() {
                         <Route index element={<Home />} /> {/* index это дочерний маршрут, который отображается по умолчанию, когда родительский маршрут активен (path="/") */}
                     </Route>
                     <Route path="/documents" element={<Layout />}>
-                        <Route index element={<Documents />} />
+                        <Route index element={<Documents />} />  {/* страница с загруженными документами в БД */}
                     </Route>
                 </Route>
 

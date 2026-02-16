@@ -10,6 +10,10 @@ import axios from '../../api/axios';
 import Cookies from 'js-cookie';
 import { DateTime } from "luxon";
 
+
+
+// отображает документы свойственные конкретному аккаунту 
+
 function Index() {
     const [fileList, setFileList] = useState([]);
     const [file, setFileName] = useState('');
@@ -18,7 +22,7 @@ function Index() {
     const [documentType, setDocumentType] = useState('Все документы');
     const [documentsCount, setDocumentsCount] = useState(0);
 
-    const DOCUMENTS_URL = 'https://test.signpush.ru/api/v4.1/paper/document';
+    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs';
     const offset = 10;
 
     useEffect(() => {
@@ -26,7 +30,7 @@ function Index() {
             let params = {offset: currentPage * offset};
 
             switch (documentType) {
-                case 'Необходимо подписать':
+                case 'Необходимо подписать': 
                     params['signedByMe'] = 0;
                     break;
                 case 'Ожидание подписи':
@@ -40,7 +44,10 @@ function Index() {
                 const result = await axios.get(
                     DOCUMENTS_URL,
                     { 
-                        params: params,
+                        params:{
+                            login: Cookies.get('user')
+                        }
+                        ,
                         headers : {
                             'Content-Type': 'application/json',
                             'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09',
