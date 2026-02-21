@@ -1,42 +1,31 @@
 import psycopg2
+import psycopg2.extras
 from config_db import user, host, password, db_name,port
-
 
 
 class Database:
   """Класс для работой с базой данных postgresql"""
 
   def __init__(self):
-    self.connection = None
-    self.host = host
-    self.user = user
-    self.password = password
-    self.dbname = db_name
-    self.port = port
-
-  def connect(self):
     """Установление соединения с бд"""
     try:
       self.connection = psycopg2.connect(
-        host=self.host,
-        user=self.user,
-        password=self.password,
-        dbname=self.dbname,
-        port=self.port
-      )
+        host=host,
+        user=user,
+        password=password,
+        dbname=db_name,
+        port=port )
       with self.connection.cursor() as cursor:
         cursor.execute("SELECT version();")
         print(f"Server version: {cursor.fetchone()}")
 
       print("[INFO] Connection to PostgreSQL established")
-      return self.connection
+      #return self.connection
     except Exception as ex:
       print("[ERROR] Error connecting to database:", ex)
       
 
-
-
-  def close(self):
+  def __del__(self):
     """Закрывает соединение с базой данных"""
     if self.connection:
       self.connection.close()
@@ -57,8 +46,7 @@ class Database:
                   id serial PRIMARY KEY,
                   login varchar(50) NOT NULL,
                   password varchar(50) NOT NULL
-              );
-          """)
+              );""")
           self.connection.commit()
           print("[INFO] Table created successfully")
 
@@ -108,7 +96,7 @@ class Database:
     if not self.connection:
       raise ConnectionError("No Activate database connection")
     try:
-      with self.connection.cursor() as cursor: # нужно в дальнейшем добавить категории документов, подписан, необходимо подписать 
+      with self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor: # нужно в дальнейшем добавить категории документов, подписан, необходимо подписать 
         cursor.execute(f""" 
             SELECT 
                 d.id,
@@ -122,14 +110,15 @@ class Database:
             WHERE u.login = '{login}'          -- логин пользователя
             ORDER BY d.created_at DESC;
                        """) 
-        result = cursor.fetchone()
-      return result
+        results = cursor.fetchall()
+        return results
+      
     except Exception as ex:
       print("[ERROR] Error in check_docs:", ex)
       
 
 
-  def insert_doc(self, title:str, hash:str, created_at:int, base64:str, user_id:int):
+  def insert_doc(self, title:str, hash:str, created_at:int, base64:str, login:int):
     """
     Публичный метод: добавление документа в бд
     (Защита от SQL инъекций отсутствует)
@@ -137,16 +126,18 @@ class Database:
     if not self.connection:
       raise ConnectionError("No Activate database connection")
     try:
+      print(f'[INFO]\ntitle:{title}\nhash:{hash}\ncreated_at:{created_at}\nbase64:{base64:64}\nlogin:{login}')
       with self.connection.cursor() as cursor:
         cursor.execute(f"""
           INSERT INTO documents (title, hash, created_at, base64, user_id)
-          VALUES ({title}, {hash}, {created_at}, {base64}, {user_id});
+          VALUES ('{title}', '{hash}','{created_at}', '{base64}', (SELECT id FROM users WHERE login = '{login}'));
                        """) 
         self.connection.commit()
         print(f"[INFO] Document {title} was successfully inserted")
-        
+      return True
     except Exception as ex:
       print("[ERROR] Error in insert_doc:", ex)
+      return False
 
 
 
@@ -162,7 +153,7 @@ class Database:
     try:
       with self.connection.cursor() as cursor:
         cursor.execute(f"""
-            DELETE FROM documents WHERE id = {id};
+            DELETE FROM documents WHERE id = '{id}';
                        """)
         self.connection.commit() 
         print(f"[INFO] Document id: {id}, deleted success")

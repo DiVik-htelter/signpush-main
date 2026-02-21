@@ -43,7 +43,6 @@ newToken = None
 def chek_auth(c_login:str, c_password:str):
   """ошибки при использовании бд не обрабатываются, нужно исправить"""
   try:
-    db.connect()
 
     global newToken 
     if db.check_user(c_login, c_password):
@@ -65,10 +64,7 @@ def chek_auth(c_login:str, c_password:str):
         "status" : 4,
         "message": exept
     }
-  finally: 
-    db.close()
 
-  
 
 
 class oldUser(BaseModel):
@@ -104,36 +100,36 @@ class PapersResponse(BaseModel):
 
 @app.get("/api/docs", response_model=PapersResponse)
 async def get_docs(login:str | None = None):
-  db.connect()
-  if login == None:
-    result = list(db.check_docs('admin@gmail.com'))
+  """Получение списка документов по логину"""
+  if login is None:
+    login = 'admin@gmail.com'
     print("Запрос без параметров")
-  else: 
-    result = list(db.check_docs(str(login)))
-    print(login)
-
-
   
-  db.close()
-  print(f"result: {result}\n\n\n\n")
+  result = db.check_docs(str(login))
   total = len(result)
   message =f"There are {total} paperes"
 
-  paper = Paper(
-      id=result[0],
-      title=result[1],
-      hash=result[2],          # .strip() удалит лишние пробелы, если они есть
-      created_at=result[3],
-      base64=result[4],
-      login=result[5]
-  )
-  # Оборачиваем в список (так как papers ожидает список документов)
-  papers_list = [paper]
+  papers_list = [Paper(**doc) for doc in result]
   
   return PapersResponse(message=message, papers=papers_list)
 
 
 
+@app.post("/api/insertDocs")
+async def insert_docs(paper:Paper):
+  
+  try:
+    flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.login)
+    headers = {
+      "Access-Control-Allow-Origin": "*"
+    } 
+    content = { 
+      "success": flag
+    }
+  except Exception as exept:
+    print("Ошибка непосредственно в роуте добавления документа: ", exept) 
+
+  return JSONResponse(content=content, headers=headers)
 
 
 

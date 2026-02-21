@@ -3,15 +3,18 @@ import Button from 'react-bootstrap/Button';
 import React, { useState } from "react";
 import jsSHA from "jssha";
 import { DateTime } from "luxon";
+import axios from '../../api/axios';
+import Cookies from 'js-cookie';
 import PdfReader from "../pdf-reader/pdf-reader";
 import "./pdf-documents.css";
 
 // Компонент, который возвращает заголовок таблица и строчки в перечне загруженных документов
-// 
+// главная страница с добавлением документов
 function PdfDocuments() {
     const [fileList, setFileList] = useState([]);
     const [inputKey, setInputKey] = useState(0);
     const [file, setFileName] = useState('');
+    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/insertDocs';
 
     const handleFileChange = async ({currentTarget: {files}}) => {
         if (files && files.length) {
@@ -34,6 +37,39 @@ function PdfDocuments() {
 
         // Reset the input by forcing a new one
         setInputKey(key => key + 1);
+        const currentFile = files[0]
+        
+
+        try {
+            const result = await axios.post(
+                DOCUMENTS_URL,
+                JSON.stringify({
+                    'id': 1,
+                    'title': currentFile.name,
+                    'hash': currentFile.hash,
+                    'created_at': 1234567,
+                    'login': Cookies.get('user'),
+                    'base64': currentFile.base64
+                 
+                })
+                ,{ 
+                    headers : {
+                        // говорит серверу что отправляет запрос в json формате и ожидает ответ так же в json
+                        'Content-Type': 'application/json',
+                        "Accept": "application/json"
+                        //'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09'
+                    },
+                }
+            );
+
+            console.log('Операция отправки документа в БД: '+ result.data.success)
+        } catch (err) {
+            console.log(err);
+    
+            return;
+        }
+
+        
     }
 
     // 👇 files is not an array, but it's iterable, spread to get an array of files
@@ -43,6 +79,7 @@ function PdfDocuments() {
         setFileName(fileList[i].base64);
     }
 
+  
     return (
         <div>
             <div className="file-upload-container">
