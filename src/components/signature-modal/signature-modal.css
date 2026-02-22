@@ -1,23 +1,130 @@
+/* ============================================================================
+   СТИЛИ ДЛЯ МОДАЛЬНОГО ОКНА ПОДПИСИ
+   ============================================================================ */
+
+/* Контейнер для canvas подписи */
+.sigContainer {
+  width: 100%;
+  height: 400px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 0 auto;
+}
+
+/* Canvas для рисования подписи */
+.sigPad {
+  border: 2px solid #dee2e6;
+  border-radius: 4px;
+  background-color: white;
+  cursor: crosshair;
+  touch-action: none; /* Важно для корректной работы на touch устройствах */
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hover эффект для desktop */
+.sigPad:hover {
+  border-color: #1B9AFF;
+  box-shadow: 0 0 10px rgba(27, 154, 255, 0.2);
+}
+
+/* Active состояние при рисовании */
+.sigPad:active {
+  border-color: #0d6efd;
+  box-shadow: 0 0 15px rgba(13, 110, 253, 0.3);
+}
+
+/* Кнопки */
+.buttons {
+  width: 100%;
+  height: 30px;
+}
+
+/* Изображение подписи */
+.sigImage {
+  background-size: 200px 50px;
+  width: 200px;
+  height: 50px;
+  background-color: white;
+}
+
+/* ============================================================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ
+   ============================================================================ */
+
+/* Планшеты */
+@media (max-width: 1024px) {
   .sigContainer {
-    width: 100%;
-    height: 100%;
-    margin: 0 auto;
-    background-color: #fff;
+    height: 350px;
   }
-  
+}
+
+/* Смартфоны */
+@media (max-width: 768px) {
+  .sigContainer {
+    height: calc(100vh - 200px); /* Максимальная высота с учетом хедера и футера */
+    padding: 5px;
+  }
+
   .sigPad {
-    width: 100%;
-    height: 100%;
+    width: 100% !important;
+    height: 100% !important;
+    border-width: 3px; /* Толще граница для лучшей видимости на мобильных */
   }
-  
-  .buttons {
-    width: 100%;
-    height: 30px;
+
+  /* Улучшенная кнопка для мобильных */
+  .btn.btn-outline-secondary {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px;
   }
-  
-  .sigImage {
-    background-size: 200px 50px;
-    width: 200px;
-    height: 50px;
-    background-color: white;
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 480px) {
+  .sigContainer {
+    height: calc(100vh - 180px);
   }
+}
+
+/* Ландшафтная ориентация на мобильных */
+@media (max-width: 768px) and (orientation: landscape) {
+  .sigContainer {
+    height: calc(100vh - 140px);
+  }
+}
+
+/* ============================================================================
+   УЛУЧШЕНИЯ ДЛЯ TOUCH УСТРОЙСТВ
+   ============================================================================ */
+
+/* Предотвращение случайного выделения текста при рисовании */
+.sigPad {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Плавная анимация появления модального окна */
+.modal.show .modal-dialog {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

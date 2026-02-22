@@ -1,0 +1,430 @@
+/* ============================================================================
+   МОБИЛЬНЫЕ СТИЛИ ДЛЯ SIGNPUSH
+   ============================================================================
+   Адаптивный дизайн для планшетов и смартфонов
+   Оптимизация для сенсорного управления
+   ============================================================================ */
+
+/* ============================================================================
+   БАЗОВЫЕ НАСТРОЙКИ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
+   ============================================================================ */
+
+/* Улучшенная прокрутка на iOS */
+* {
+  -webkit-overflow-scrolling: touch;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Увеличение размера кликабельных элементов для сенсорных экранов */
+button, a, input[type="file"] {
+  min-height: 44px; /* Рекомендация Apple для touch targets */
+  min-width: 44px;
+}
+
+/* ============================================================================
+   ПЛАНШЕТЫ (768px - 1024px)
+   ============================================================================ */
+@media (max-width: 1024px) {
+  /* Уменьшение отступов для экономии пространства */
+  .container, .container-fluid {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+
+  /* Адаптация таблицы документов */
+  .table {
+    font-size: 14px;
+  }
+
+  .hash-column {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Кнопки действий в таблице */
+  .action-button {
+    margin: 5px 0;
+  }
+
+  .action-button .btn {
+    width: 100%;
+    font-size: 14px;
+  }
+}
+
+/* ============================================================================
+   СМАРТФОНЫ (до 768px)
+   ============================================================================ */
+@media (max-width: 768px) {
+  
+  /* --- ЗАГОЛОВКИ И ТИПОГРАФИЯ --- */
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
+  h3 { font-size: 18px; }
+  
+  body {
+    font-size: 14px;
+  }
+
+  /* --- ТАБЛИЦА ДОКУМЕНТОВ --- */
+  
+  /* Скрываем лишние колонки на маленьких экранах */
+  .table th:nth-child(2), /* Hash колонка */
+  .table td:nth-child(2) {
+    display: none;
+  }
+
+  .table th:nth-child(4), /* Размер документа */
+  .table td:nth-child(4) {
+    display: none;
+  }
+
+  /* Уменьшаем размер текста в таблице */
+  .table {
+    font-size: 13px;
+  }
+
+  .table th, .table td {
+    padding: 8px 4px;
+  }
+
+  /* Адаптация кнопок в таблице */
+  .action-button {
+    display: block;
+    margin: 3px 0;
+  }
+
+  .action-button .btn {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* --- ЗАГРУЗКА ФАЙЛОВ --- */
+  
+  .file-upload-container {
+    margin-bottom: 20px;
+  }
+
+  .file-upload-container .button {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 16px;
+    text-align: center;
+  }
+
+  /* --- PDF TOOLBAR --- */
+  
+  .toolbar {
+    flex-wrap: wrap;
+    padding: 10px 5px !important;
+    gap: 8px;
+  }
+
+  .toolbar .col {
+    flex: 1 1 100%;
+    max-width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .toolbar .col-auto {
+    flex: 0 0 auto;
+    width: auto;
+    margin-right: 8px;
+  }
+
+  /* Кнопки тулбара на всю ширину */
+  .toolbar button {
+    padding: 10px 15px;
+    font-size: 14px;
+  }
+
+  .toolbar .btn-success {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  /* Пагинация */
+  .pagination {
+    font-size: 14px;
+    justify-content: center;
+  }
+
+  .pagination .page-link {
+    padding: 6px 12px;
+    min-width: 36px;
+  }
+
+  /* --- PDF КОНТЕЙНЕР --- */
+  
+  .pdf-container {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .pdf-content {
+    width: 100% !important;
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pdf-content canvas {
+    max-width: 100%;
+    height: auto !important;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  /* --- МОДАЛЬНОЕ ОКНО ПОДПИСИ --- */
+  
+  .modal-fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .modal-fullscreen .modal-dialog {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    max-width: 100%;
+  }
+
+  .modal-fullscreen .modal-content {
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-fullscreen .modal-body {
+    padding: 10px;
+  }
+
+  /* Canvas для подписи */
+  .sigContainer {
+    width: 100%;
+    height: calc(100vh - 150px) !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .sigPad {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    touch-action: none; /* Отключаем стандартные жесты браузера */
+  }
+
+  /* Кнопки модального окна */
+  .modal-footer {
+    padding: 15px;
+    gap: 10px;
+  }
+
+  .modal-footer .btn {
+    flex: 1;
+    padding: 12px 20px;
+    font-size: 16px;
+  }
+
+  /* --- НАВИГАЦИЯ --- */
+  
+  .navbar {
+    padding: 10px 15px;
+  }
+
+  .navbar-brand {
+    font-size: 18px;
+  }
+
+  /* --- КАРТОЧКИ (если используются) --- */
+  
+  .card {
+    margin-bottom: 15px;
+  }
+
+  .card-body {
+    padding: 15px;
+  }
+}
+
+/* ============================================================================
+   МАЛЕНЬКИЕ СМАРТФОНЫ (до 480px)
+   ============================================================================ */
+@media (max-width: 480px) {
+  
+  /* Ещё меньше шрифты */
+  body {
+    font-size: 13px;
+  }
+
+  h1 { font-size: 20px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 16px; }
+
+  /* Таблица в режиме карточек */
+  .table thead {
+    display: none; /* Скрываем заголовки таблицы */
+  }
+
+  .table tbody tr {
+    display: block;
+    margin-bottom: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .table tbody td {
+    display: block;
+    text-align: left !important;
+    padding: 8px 0;
+    border: none;
+  }
+
+  .table tbody td:before {
+    content: attr(data-label);
+    font-weight: bold;
+    display: inline-block;
+    margin-right: 10px;
+    min-width: 100px;
+  }
+
+  /* Кнопки действий */
+  .action-button {
+    margin: 5px 0;
+  }
+
+  /* Toolbar кнопки вертикально */
+  .toolbar .col-auto {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .toolbar button {
+    width: 100%;
+  }
+
+  /* Пагинация компактнее */
+  .pagination .page-link {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: 30px;
+  }
+}
+
+/* ============================================================================
+   ЛАНДШАФТНАЯ ОРИЕНТАЦИЯ НА СМАРТФОНАХ
+   ============================================================================ */
+@media (max-width: 768px) and (orientation: landscape) {
+  
+  /* Уменьшаем toolbar */
+  .toolbar {
+    padding: 5px !important;
+  }
+
+  .toolbar button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* Canvas подписи занимает всю доступную высоту */
+  .sigContainer {
+    height: calc(100vh - 120px) !important;
+  }
+
+  /* PDF контейнер */
+  .pdf-content canvas {
+    height: 70vh !important;
+  }
+}
+
+/* ============================================================================
+   УТИЛИТЫ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
+   ============================================================================ */
+
+/* Скрыть элемент только на мобильных */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Показать элемент только на мобильных */
+.show-mobile {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .show-mobile {
+    display: block !important;
+  }
+}
+
+/* Адаптивный текст */
+.responsive-text {
+  font-size: clamp(12px, 2vw, 16px);
+}
+
+/* Безопасная зона для iPhone X и новее */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
+
+/* ============================================================================
+   ОПТИМИЗАЦИЯ ПРОИЗВОДИТЕЛЬНОСТИ
+   ============================================================================ */
+
+/* Ускорение анимаций на мобильных */
+@media (max-width: 768px) {
+  * {
+    transition-duration: 0.2s !important;
+  }
+
+  /* Отключаем сложные тени на слабых устройствах */
+  .shadow, .shadow-sm, .shadow-lg {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+  }
+}
+
+/* ============================================================================
+   ДОСТУПНОСТЬ НА МОБИЛЬНЫХ
+   ============================================================================ */
+
+/* Увеличенные области для touch */
+@media (max-width: 768px) {
+  a, button, input, select, textarea {
+    padding: 12px;
+  }
+
+  /* Увеличенные чекбоксы и радио кнопки */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ============================================================================
+   СПЕЦИФИЧНЫЕ СТИЛИ ДЛЯ PWA
+   ============================================================================ */
+
+/* Standalone режим (когда приложение установлено) */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

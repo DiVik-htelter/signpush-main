@@ -14,6 +14,7 @@ function PdfDocuments() {
     const [fileList, setFileList] = useState([]);
     const [inputKey, setInputKey] = useState(0);
     const [file, setFileName] = useState('');
+    const [selectedDocumentId, setSelectedDocumentId] = useState(null); // ID выбранного документа для подписи
     const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/insertDocs';
 
     const handleFileChange = async ({currentTarget: {files}}) => {
@@ -76,7 +77,12 @@ function PdfDocuments() {
     const files = fileList ? [...fileList] : [];
 
     const showPdfClick = async (i) => {
+        // Устанавливаем base64 содержимое для просмотра
         setFileName(fileList[i].base64);
+        
+        // Сохраняем ID документа (для локально загруженных файлов используем индекс)
+        // В реальном приложении здесь будет ID из базы данных
+        setSelectedDocumentId(i + 1); // Временное решение для локальных файлов
     }
 
   
@@ -104,23 +110,28 @@ function PdfDocuments() {
                 <tbody>
                 {files.map((file, i) => (
                     <tr key={i}>
-                        <td>{file.name}</td>
-                        <td className='hash-column'>{file.hash}</td>
-                        <td>{file.created_at}</td>
-                        <td>{(file.size / (1024)).toFixed(2) + ' KB'}</td>
-                        <td colSpan={2}>
+                        {/* data-label атрибуты используются для карточного вида на мобильных */}
+                        <td data-label="Документ">{file.name}</td>
+                        <td data-label="Hash" className='hash-column'>{file.hash}</td>
+                        <td data-label="Дата создания">{file.created_at}</td>
+                        <td data-label="Размер">{(file.size / (1024)).toFixed(2) + ' KB'}</td>
+                        <td data-label="Действия" colSpan={2}>
                             <div className="action-button">
-                                <Button onClick={() => showPdfClick(i)}>Просмотр</Button>
+                                <Button onClick={() => showPdfClick(i)}>
+                                    <i className="bi bi-eye"></i> Просмотр
+                                </Button>
                             </div>
                             <div className="action-button">
-                                <Button>Подпись</Button>
+                                <Button variant="success">
+                                    <i className="bi bi-pen"></i> Подпись
+                                </Button>
                             </div>
                         </td>
                     </tr>
                 ))}
                 </tbody>
             </Table>
-            {file && <PdfReader file={file}></PdfReader>}
+            {file && <PdfReader file={file} documentId={selectedDocumentId}></PdfReader>}
         </div>
     );
 }
