@@ -200,23 +200,8 @@ async def get_docs(
 
 
 
-class InsertDocResponse(BaseModel):
-  success: bool = Field(
-      ..., 
-      description="Флаг успешного добавления документа",
-      json_schema_extra={"example": True}
-  )
-
-
-@app.post(
-    "/api/insertDocs",
-    response_model=InsertDocResponse,
-    summary="Загружка нового документа",
-    tags=["Документы"],
-    description="Добавить новый PDF документ в систему. Документ должен быть предварительно закодирован в Base64 формат"
-)
-async def insert_docs(paper: Paper):
-  """Добавление нового документа в базу данных"""
+@app.post("/api/insertDocs")
+async def insert_docs(paper:Paper):
   
   try:
     flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.login)
@@ -231,29 +216,8 @@ async def insert_docs(paper: Paper):
 
   return JSONResponse(content=content, headers=headers)
 
-class DeleteDocResponse(BaseModel):
-  success: bool = Field(
-      ..., 
-      description="Флаг успешного удаления документа",
-      json_schema_extra={"example": True}
-  )
-
-
-@app.delete(
-    "/api/docs/{doc_id}",
-    response_model=DeleteDocResponse,
-    summary="Удаление документа",
-    tags=["Документы"],
-    description="Удалить документ по его ID из системы. После удаления документ больше не будет доступен"
-)
-async def doc_delete(
-    doc_id: int = Path(
-        ..., 
-        description="Уникальный идентификатор документа для удаления",
-        json_schema_extra={"example": 123},
-        gt=0
-    )
-):
+@app.delete("/api/docs/{doc_id}")
+async def doc_delete(doc_id:int):
   """Удаление документа по ID"""
   flag = False
   try:
