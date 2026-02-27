@@ -4,8 +4,10 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "./pdf-reader.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import SignatureModal from '../signature-modal/signature-modal';
+import axios from '../../api/axios';
+import Cookies from 'js-cookie';
 
-export default function PdfReader({file}) {
+export default function PdfReader({file, documentId}) {
     const canvasRef = useRef(null);
     const [pages, setPages] = useState([1]);
     const [pdf, setPdf] = useState([1]);
@@ -16,6 +18,8 @@ export default function PdfReader({file}) {
     const [squareY, setYCoord] = useState(null);
     const [squareWidth, setWidth] = useState(null);
     const [squareHeight, setHeight] = useState(null);
+    const [isSaving, setIsSaving] = useState(false); // Флаг процесса сохранения
+    const [signatureImageData, setSignatureImageData] = useState(null); // Данные подписи
     const zoomScale = 1;
     const rotateAngle = 0;
     var pdf_image = "";
@@ -177,7 +181,8 @@ export default function PdfReader({file}) {
   });
 
   const handleCallback = (childData) => {
-    // Update the name in the component's state
+    // Получаем изображение подписи из модального окна (в base64)
+    // и сохраняем его для последующей отправки на сервер
 
     const canvas = canvasRef.current;
     const canvasContext = canvas.getContext('2d');
@@ -185,6 +190,9 @@ export default function PdfReader({file}) {
     var canvasPic = new Image();
     canvasPic.src = childData;
     pdf_image = canvasPic;
+
+    // Сохраняем данные подписи для отправки на сервер
+    setSignatureImageData(childData);
 
     pdf_image.onload = () => {
       if (squareHeight === 0 || squareHeight === 0 || squareHeight === null || squareWidth === null) {
@@ -196,7 +204,7 @@ export default function PdfReader({file}) {
   }
 
   const handleClearClick = async () => {
-     //Log user input
+     // Очищает подпись с canvas и сбрасывает состояние
      const page = await pdf.getPage(currentPage);
      const viewport = page.getViewport({ scale: 2 });
 
@@ -214,6 +222,94 @@ export default function PdfReader({file}) {
      if (typeof pdf_image == "string") {
        saveInitialCanvas();
      }
+
+     // Сбрасываем сохранённые данные подписи
+     setSignatureImageData(null);
+     setXCoord(null);
+     setYCoord(null);
+     setWidth(null);
+     setHeight(null);
+  }
+
+  /**
+   * Сохраняет подписанный документ на сервер
+   * Отправляет PDF с встроенной подписью на backend для обработки
+   */
+  const handleSaveSignedDocument = async () => {
+    // Проверяем, что есть подпись для сохранения
+    if (!signatureImageData || !squareWidth || !squareHeight) {
+      alert('⚠️ Сначала добавьте подпись на документ!');
+      return;
+    }
+
+    // Проверяем наличие documentId
+    if (!documentId) {
+      alert('❌ Ошибка: ID документа не определён');
+      console.log(documentId)
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      console.log('Отправка подписанного документа на сервер...');
+
+      // Получаем email текущего пользователя из cookies
+      const userLogin = Cookies.get('user');
+      
+      if (!userLogin) {
+        alert('❌ Пользователь не авторизован');
+        setIsSaving(false);
+        return;
+      }
+
+      // Формируем запрос на подписание документа
+      const response = await axios.post(
+        'http://127.0.0.1:8000/api/sign-document',
+        {
+          document_id: documentId,           // ID исходного документа
+          signature_base64: signatureImageData, // Изображение подписи
+          page_number: currentPage - 1,      // Номер страницы (0-indexed)
+          x: squareX,                        // Координата X
+          y: squareY,                        // Координата Y
+          width: squareWidth,                // Ширина подписи
+          height: squareHeight,              // Высота подписи
+          login: userLogin                   // Email пользователя
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      console.log('Ответ сервера:', response.data);
+
+      if (response.data.success) {
+        alert(`✅ ${response.data.message}\n\nНовый документ ID: ${response.data.new_document_id}\nХеш: ${response.data.hash.substring(0, 16)}...`);
+        
+        // Перезагружаем страницу для обновления списка документов
+        window.location.reload();
+      } else {
+        alert(`❌ Ошибка при подписании: ${response.data.message}`);
+      }
+
+    } catch (error) {
+      console.error('Ошибка при сохранении подписи:', error);
+      
+      if (error.response) {
+        // Сервер ответил с ошибкой
+        alert(`❌ Ошибка сервера: ${error.response.data.message || error.response.statusText}`);
+      } else if (error.request) {
+        // Запрос был отправлен, но ответа не получено
+        alert('❌ Ошибка соединения с сервером. Проверьте, что backend запущен.');
+      } else {
+        // Другая ошибка
+        alert(`❌ Ошибка: ${error.message}`);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   }
 
     return <div>
@@ -242,12 +338,37 @@ export default function PdfReader({file}) {
                 </div> */}
             </div>
             <div className='col col-auto'>
-              <button type="button" className="btn btn-outline-secondary" onClick={handleClearClick}>
+              <button 
+                type="button" 
+                className="btn btn-outline-secondary" 
+                onClick={handleClearClick}
+                title="Очистить подпись"
+              >
                 <i className="bi bi-eraser"></i>
               </button>
             </div>
             <div className='col col-auto'>
               <SignatureModal handleCallback={handleCallback}></SignatureModal>
+            </div>
+            <div className='col col-auto'>
+              <button 
+                type="button" 
+                className="btn btn-success" 
+                onClick={handleSaveSignedDocument}
+                disabled={!signatureImageData || !squareWidth || !squareHeight || isSaving}
+                title="Сохранить подписанный документ"
+              >
+                {isSaving ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Сохранение...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-save"></i> Сохранить подпись
+                  </>
+                )}
+              </button>
             </div>
         </div>
         <div id="viewport" role="main"></div>

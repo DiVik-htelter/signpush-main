@@ -17,6 +17,7 @@ import { DateTime } from "luxon";
 function Index() {
     const [fileList, setFileList] = useState([]);
     const [file, setFileName] = useState('');
+    const [fileId, setFileId] = useState('');
     const [pages, setPages] = useState([1]);
     const [currentPage, setCurrentPage] = useState(0);
     const [documentType, setDocumentType] = useState('Все документы');
@@ -67,9 +68,11 @@ function Index() {
                     return item;
                 })
     
+
+                console.log(result.data.papers)
                 setDocumentsCount(result.data?.papers.length);
                 setFileList(result.data?.papers);
-                setPages(Array(Number(countOfDocuments)));
+                //setPages(Array(Number(countOfDocuments)));
             } catch (err) {
                 console.log(err);
         
@@ -92,8 +95,30 @@ function Index() {
 
     const showPdfClick = async (i) => {
         setFileName(fileList[i].base64);
+        setFileId(fileList[i].id);
     }
 
+    const deleteDoc = async (i) => {
+         
+
+        const result = await axios.delete(
+                    DOCUMENTS_URL,
+                    { 
+                        params:{
+                            //login: Cookies.get('user'),
+                            doc_id: fileList[i].id
+                        }
+                        ,
+                        headers : {
+                            'Content-Type': 'application/json',
+                            'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09',
+                            'token': Cookies.get('token')
+                        },
+                    }
+                );
+                // добавить обновление страницы
+
+    }
     return (
         <div className='documents'>
             <div className='summary'>
@@ -142,15 +167,18 @@ function Index() {
                             <div className="action-button">
                                 <Button onClick={() => showPdfClick(i)}>Просмотр</Button>
                             </div>
+                            <div className='action-button'>
+                                <Button onClick={() => deleteDoc(i)}>Удалить</Button>
+                            </div>
                             <div className="action-button">
-                                <Button>Подпись</Button>
+                                <Button>Подпись</Button> {/*тут наверное будет располагатся логика внедрения подписи в документ и сохранение измененного вида в бд */}
                             </div>
                         </td>
                     </tr>
                 ))}
                 </tbody>
             </Table>
-            {file && <PdfReader file={file}></PdfReader>}
+            {file && <PdfReader file={file} documentId={fileId}></PdfReader>}
         </div>
     );
 }

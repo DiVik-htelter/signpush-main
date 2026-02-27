@@ -45,6 +45,7 @@ function Login() {
                 })
                 ,{ 
                     headers : {
+                        // говорит серверу что отправляет запрос в json формате и ожидает ответ так же в json
                         'Content-Type': 'application/json',
                         "Accept": "application/json"
                         //'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09'

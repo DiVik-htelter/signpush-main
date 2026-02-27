@@ -222,7 +222,7 @@ class Database:
           print(f"[INFO] Document id: {doc_id} retrieved successfully")
           return dict(result)
         else:
-          print(f"[WARNING] Document id: {doc_id} not found")
+          print(f"[ERROR] Document id: {doc_id} not found")
           return None
           
     except Exception as ex:
