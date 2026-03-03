@@ -114,7 +114,7 @@ async def chek_login(old_user: oldUser):
   **Коды статуса ответа:**
   - 0: Успешная аутентификация
   - 2: Неверный логин или пароль
-  - 4: Внутренняя ошибка сервера
+  - 3: Ошибка подключения к базе данных
   """
   try:
     content = chek_auth(old_user.mail, old_user.password)

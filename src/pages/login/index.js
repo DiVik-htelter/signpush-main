@@ -22,7 +22,7 @@ function Login() {
     const navigate = useNavigate();
     const location = useLocation()
     const from = location.state?.from?.pathname || '/';
-    const LOGIN_URL = 'http://127.0.0.1:8000/api/auth/'; // адрес, куда пойдет запрос на авторизацию 
+    const LOGIN_URL = 'http://127.0.0.1:8000/api/auth/'; // адрес, куда пойдет запрос на проверку
 
     const handleSubmit = async (e) => {
         let response;
@@ -77,22 +77,22 @@ function Login() {
             return;
         }
 
-        if (response?.data?.status === 0) { // success: true 
+        if (response?.data?.status == 0) { // success: true
             let expires = new Date()
             expires.setTime(expires.getTime() + 1000000);
 
             setCookie('user', user, { path: '/',  expires}); // по видимому в куки записывается сгенерированные токен и в дальнейшем проверяется 
             setCookie('token', response?.data?.token || '213', { path: '/',  expires});
 
-            setUser('');
+            setUser(''); 
             setPassword('');
-            setAuth({user});
+            setAuth({user}); 
 
             setDisabled(false);
             navigate(from, { replace: true });
 
         } else {
-            if (response?.data?.status === 2) {
+            if (response?.data?.status == 3) {
                 setErrorMessage('Пожалуйста зарегистрируйтесь или активируйте аккаунт.');
             } else {
                 setErrorMessage(response?.data?.message || 'Неверный пароль или почта.');

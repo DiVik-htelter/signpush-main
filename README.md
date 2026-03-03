@@ -1,70 +1,295 @@
-# Getting Started with Create React App
+# 📋 SignPush - Веб-приложение для управления и подписания документов
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**SignPush** — полнофункциональное веб-приложение для управления электронными PDF-документами с поддержкой цифрового подписания. Быстрая загрузка, просмотр, подписание и верификация документов.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 🎯 Основные возможности
 
-### `npm start`
+- ✅ **Аутентификация** - Безопасная авторизация пользователей через email/password
+- ✅ **Управление документами** - Загрузка, просмотр и фильтрация PDF-файлов
+- ✅ **Цифровые подписи** - Создание рукописных подписей прямо в браузере
+- ✅ **Размещение подписей** - Удобное размещение подписей на нужных страницах документа
+- ✅ **Верификация** - Вычисление SHA-256 хеша для проверки целостности
+- ✅ **Пагинация** - Удобная навигация по спискам документов
+- ✅ **Отзывчивый дизайн** - Полная поддержка мобильных устройств
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🛠️ Технологический стек
 
-### `npm test`
+### Frontend
+- **React** 18.2.0 — современная JavaScript библиотека
+- **React Router** v6 — клиентская маршрутизация
+- **Bootstrap** 5.3.2 + React-Bootstrap — адаптивный UI фреймворк
+- **PDF.js** 3.10.111 — рендеринг и работа с PDF
+- **Axios** 1.5.1 — HTTP клиент для API запросов
+- **React Context API** — управление состоянием приложения
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Backend
+- **FastAPI** — современный асинхронный веб-фреймворк
+- **PostgreSQL** — база данных для хранения документов и пользователей
+- **Python 3.x** — язык программирования
 
-### `npm run build`
+### Frontend зависимости
+```json
+{
+  "react": "^18.2.0",
+  "react-bootstrap": "^2.9.0",
+  "bootstrap": "^5.3.2",
+  "axios": "^1.5.1",
+  "pdfjs-dist": "^3.10.111",
+  "react-pdf": "^7.3.3",
+  "react-signature-canvas": "^1.0.6",
+  "react-cookie": "^6.1.1"
+}
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 📂 Структура проекта
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```
+signpush-main/
+├── 📁 src/                          # Исходный код React приложения
+│   ├── 📁 components/               # Переиспользуемые компоненты UI
+│   │   ├── header/                  # Заголовок приложения
+│   │   ├── pdf-reader/              # Просмотр PDF документов
+│   │   ├── pdf-documents/           # Список документов
+│   │   ├── paginator/               # Компонент пагинации
+│   │   ├── signature-modal/         # Модальное окно подписи
+│   │   ├── detect-os/               # Детектирование ОС
+│   │   └── require-auth/            # Защита авторизованного контента
+│   ├── 📁 pages/                    # Страницы приложения
+│   │   ├── home/                    # Главная страница
+│   │   ├── documents/               # Страница с документами
+│   │   ├── login/                   # Страница входа
+│   │   ├── registration/            # Страница регистрации
+│   │   └── layout/                  # Главный layout приложения
+│   ├── 📁 context/                  # React Context (управление состоянием)
+│   │   └── AuthProvider.js          # Контекст аутентификации
+│   ├── 📁 hooks/                    # Кастомные React хуки
+│   │   └── useAuth.js               # Хук для работы с аутентификацией
+│   ├── 📁 api/                      # API интеграция
+│   │   └── axios.js                 # Конфигурация HTTP клиента
+│   ├── 📁 styles/                   # Глобальные стили
+│   │   └── mobile.css               # Мобильные стили
+│   ├── 📁 fonts/                    # Шрифты приложения
+│   ├── App.js                       # Главный компонент приложения
+│   ├── index.js                     # Точка входа React
+│   └── index.css                    # Глобальные CSS стили
+│
+├── 📁 public/                       # Статические файлы и HTML
+│   ├── index.html                   # HTML шаблон
+│   ├── manifest.json                # PWA манифест
+│   └── 📁 pdfjs-dist/               # PDF.js библиотеки (разные версии)
+│
+├── 📁 backend/                      # Python backend код
+│   ├── main.py                      # Точка входа FastAPI приложения
+│   ├── database.py                  # Работа с БД
+│   ├── config_db.py                 # Конфигурация базы данных
+│   ├── pdf_signer.py                # Логика подписания PDF
+│   ├── test.py                      # Тесты
+│   ├── requirements.txt              # Зависимости Python
+│   └── create_signatures_table.sql  # SQL схема для таблицы подписей
+│
+├── 📁 docs/                         # Подробная документация проекта
+│   ├── ARCHITECTURE.md              # Архитектура приложения
+│   ├── TECH_STACK.md                # Детальное описание техстека
+│   ├── COMPONENTS_CORE.md           # Документация ядро компонентов
+│   ├── COMPONENTS_PAGES.md          # Документация компонентов страниц
+│   ├── COMPONENTS_PDF.md            # Документация PDF компонентов
+│   ├── COMPONENTS_UI.md             # Документация UI компонентов
+│   ├── SECURITY.md                  # Информация о безопасности
+│   └── README.md                    # Полная документация
+│
+├── 📁 build/                        # Собранное приложение (после npm build)
+│
+├── package.json                     # Зависимости и скрипты npm
+├── README.md                        # Этот файл
+├── IMPROVEMENTS.md                  # Список улучшений
+└── MOBILE_GUIDE.md                  # Руководство для мобильных устройств
+```
 
-### `npm run eject`
+---
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## 🚀 Установка и запуск
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Требования
+- **Node.js** >= 14.0
+- **npm** >= 6.0
+- **Python** >= 3.8 (для backend)
+- **PostgreSQL** >= 12 (для базы данных)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Frontend - Запуск приложения
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. **Установка зависимостей:**
+   ```bash
+   npm install
+   ```
 
-## Learn More
+2. **Запуск в режиме разработки:**
+   ```bash
+   npm start
+   ```
+   Приложение откроется автоматически на [http://localhost:3000](http://localhost:3000)
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+3. **Сборка для production:**
+   ```bash
+   npm run build
+   ```
+   Собранные файлы будут в папке `build/`
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Backend - Запуск сервера
 
-### Code Splitting
+1. **Переход в папку backend:**
+   ```bash
+   cd backend
+   ```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+2. **Установка зависимостей:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### Analyzing the Bundle Size
+3. **Запуск сервера:**
+   ```bash
+   python main.py
+   ```
+   Сервер будет доступен на `http://127.0.0.1:8000`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+---
 
-### Making a Progressive Web App
+## 📖 Документация
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Полная документация проекта находится в папке `/docs/`:
 
-### Advanced Configuration
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — Архитектурные паттерны и схема приложения
+- **[TECH_STACK.md](./docs/TECH_STACK.md)** — Детальное описание технологий и библиотек
+- **[COMPONENTS_CORE.md](./docs/COMPONENTS_CORE.md)** — Основные компоненты
+- **[COMPONENTS_PAGES.md](./docs/COMPONENTS_PAGES.md)** — Компоненты страниц
+- **[COMPONENTS_PDF.md](./docs/COMPONENTS_PDF.md)** — PDF функционал
+- **[COMPONENTS_UI.md](./docs/COMPONENTS_UI.md)** — UI компоненты
+- **[SECURITY.md](./docs/SECURITY.md)** — Информация о безопасности
+- **[IMPROVEMENTS.md](./IMPROVEMENTS.md)** — План улучшений
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+---
 
-### Deployment
+## 🔄 Основной workflow
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+```
+1. Пользователь входит в систему (login)
+       ↓
+2. Переходит на страницу документов (documents)
+       ↓
+3. Выбирает документ для просмотра
+       ↓
+4. Просматривает PDF в компоненте pdf-reader
+       ↓
+5. Создает подпись в signature-modal
+       ↓
+6. Размещает подпись на нужной странице
+       ↓
+7. Документ подписывается и сохраняется
+```
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 🎨 Структура компонентов
+
+### Pages (Страницы)
+- **Home** — Главная страница приложения
+- **Documents** — Список всех документов пользователя
+- **Login** — Страница входа
+- **Registration** — Страница регистрации
+- **Layout** — Главный layout с навигацией
+
+### Components (Компоненты)
+- **Header** — Заголовок с меню навигации
+- **PDFReader** — Просмотр и навигация по PDF
+- **PDFDocuments** — Таблица документов с фильтрацией
+- **SignatureModal** — Модальное окно для создания подписи
+- **Paginator** — Компонент пагинации для списков
+- **DetectOS** — Детектирование операционной системы
+- **RequireAuth** — Хок для защиты маршрутов
+
+---
+
+## 🔐 Аутентификация
+
+Приложение использует **Context API** для управления состоянием пользователя:
+
+```javascript
+// src/context/AuthProvider.js
+- Хранит информацию о пользователе
+- Управляет сессией (cookies)
+- Предоставляет функции входа/выхода
+```
+
+Для использования:
+```javascript
+import { useAuth } from './hooks/useAuth';
+
+function Component() {
+  const { user, login, logout } = useAuth();
+  // ...
+}
+```
+
+---
+
+## 🌐 API Integration
+
+Все API запросы обрабатываются через **Axios**:
+
+```javascript
+// src/api/axios.js
+- Базовая конфигурация HTTP клиента
+- Автоматическое добавление headers
+- Обработка ошибок
+```
+
+---
+
+## 📱 Мобильная поддержка
+
+Приложение полностью адаптировано для мобильных устройств:
+- Отзывчивый дизайн на Bootstrap
+- Специальные мобильные стили (`src/styles/mobile.css`)
+- Сенсорная поддержка для подписей
+
+Подробнее см. [MOBILE_GUIDE.md](./MOBILE_GUIDE.md)
+
+---
+
+## 🤝 Контрибьюция
+
+1. Создайте новую ветку (`git checkout -b feature/AmazingFeature`)
+2. Зафиксируйте изменения (`git commit -m 'Add some AmazingFeature'`)
+3. Отправьте в ветку (`git push origin feature/AmazingFeature`)
+4. Откройте Pull Request
+
+---
+
+## 📝 Лицензия
+
+Этот проект распространяется под лицензией MIT. Подробности см. в LICENSE файле.
+
+---
+
+## 💡 Быстрая помощь
+
+**Проблемы при установке?**
+- Убедитесь, что установлены Node.js и Python нужных версий
+- Удалите `node_modules` и переустановите: `rm -rf node_modules && npm install`
+
+**Ошибки при запуске?**
+- Проверьте логи в консоли браузера (F12)
+- Убедитесь, что backend сервер запущен на правильном порту
+
+**Вопросы по архитектуре?**
+- Смотрите полную документацию в папке `/docs/`
+
+---
+
+**Последнее обновление:** 2026

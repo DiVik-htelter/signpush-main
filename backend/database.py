@@ -50,7 +50,27 @@ class Database:
           self.connection.commit()
           print("[INFO] Table created successfully")
 
-
+  def check_originality_login(self, login: str) -> bool:
+    """
+    Публичный метод: проверяет уникальность логина при регистрации.
+    Использует параметризованные запросы для защиты от SQL-инъекций.
+    """
+    if not self.connection:
+        raise ConnectionError("No active database connection")
+    try:
+      with self.connection.cursor() as cursor:
+        # Параметризованный запрос - безопасен от SQL-инъекций
+        cursor.execute("SELECT id FROM users WHERE login = %s;", (login,))
+        result = cursor.fetchone()
+        if result:
+          print(f"[INFO] Login {login} is already taken")
+          return False 
+        else:
+          print(f"[INFO] Login {login} is available")
+          return True 
+    except Exception as ex:
+      print("[ERROR] Error in check_originality_login:", ex)
+      return False
 
   def insert_user(self, login: str, password: str) -> bool:
     """
@@ -75,10 +95,14 @@ class Database:
 
 
 
-  def check_user(self, login: str, password: str) -> bool | int:
+  def check_user(self, login: str, password: str) -> int:
     """
     Публичный метод: проверяет существование пользователя с указанным паролем.
     Использует параметризованные запросы для защиты от SQL-инъекций.
+    **Возвращает:**
+    - 0: Успешная аутентификация
+    - 2: Неверный логин или пароль
+    - 3: Ошибка подключения к базе данных
     """
     if not self.connection:
         raise ConnectionError("No active database connection")
@@ -90,13 +114,13 @@ class Database:
        
         if result and result[0] == password:
           print("[INFO] User checked successfully")
-          return True 
+          return True
       
-      return False 
+      return False
     except Exception as ex:
       print("[ERROR] Error in the check_user:", ex)
     
-    return 3 # статус код ошибки с базой данных 
+    return False
     
   
 

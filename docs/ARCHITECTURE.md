@@ -351,7 +351,7 @@ index.js (ReactDOM.render)
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ 1. User Selects Area (Mouse Events)                │
+│ 1. User Selects Area (Mouse Events)                 │
 │    mousedown → save startX, startY                  │
 │    mousemove → draw rectangle                       │
 │    mouseup → save width, height                     │
