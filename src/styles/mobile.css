@@ -428,3 +428,195 @@ button, a, input[type="file"] {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ============================================================================
+   АДАПТИВНЫЕ СТИЛИ ДЛЯ СТРАНИЦ ЛОГИНА И РЕГИСТРАЦИИ
+   ============================================================================ */
+
+/* Планшеты - регистрация и логин */
+@media (max-width: 1024px) {
+  header {
+    padding: 0 10%;
+    width: 80%;
+  }
+
+  .site-login .row.jumbotron,
+  .site-registration .row.jumbotron {
+    padding: 45px;
+  }
+
+  .modal-login_input,
+  .modal-reg_input {
+    font-size: 14px;
+  }
+}
+
+/* Смартфоны - регистрация и логин */
+@media (max-width: 768px) {
+  header {
+    padding: 0 10px;
+    width: calc(100% - 20px);
+    height: 70px;
+  }
+
+  #header_logo {
+    width: 120px;
+  }
+
+  .site-login .row.jumbotron,
+  .site-registration .row.jumbotron {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    -webkit-transform: none;
+    -ms-transform: none;
+    margin: 0 auto;
+    padding: 30px 20px;
+    margin-top: 100px;
+    max-width: 95vw;
+  }
+
+  .site-login .row .col-lg-12,
+  .site-registration .row .col-lg-12 {
+    padding: 0;
+  }
+
+  #pass-label,
+  #reg-title {
+    font-size: 20px;
+    margin-bottom: 25px;
+  }
+
+  .modal-login_input,
+  .modal-reg_input {
+    font-size: 16px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .site-login button#sign-in,
+  .site-registration button#sign-up {
+    min-height: 44px;
+    padding: 12px;
+    font-size: 16px;
+    margin-top: 10px;
+  }
+
+  .login-signup-link-container,
+  .reg-login-link-container {
+    margin-top: 20px;
+  }
+
+  .login-signup-text,
+  .reg-login-text {
+    font-size: 14px;
+    flex-wrap: wrap;
+    display: flex;
+    justify-content: center;
+  }
+
+  .login-signup-link,
+  .reg-login-link {
+    margin-left: 4px;
+  }
+
+  .site-login .error-message.text-danger,
+  .site-registration .alert {
+    font-size: 13px;
+    padding: 10px;
+    margin-top: 10px;
+  }
+}
+
+/* Маленькие смартфоны (до 480px) */
+@media (max-width: 480px) {
+  header {
+    height: 60px;
+    padding: 0 5px;
+    width: calc(100% - 10px);
+  }
+
+  #header_logo {
+    width: 100px;
+  }
+
+  .site-login .row.jumbotron,
+  .site-registration .row.jumbotron {
+    padding: 20px 15px;
+    margin-top: 80px;
+  }
+
+  #pass-label,
+  #reg-title {
+    font-size: 18px;
+    margin-bottom: 18px;
+  }
+
+  .modal-login_input,
+  .modal-reg_input {
+    font-size: 16px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .site-login button#sign-in,
+  .site-registration button#sign-up {
+    padding: 12px 10px;
+    font-size: 15px;
+  }
+
+  .login-signup-text,
+  .reg-login-text {
+    font-size: 13px;
+  }
+}
+
+/* Ландшафтная ориентация на смартфонах */
+@media (max-width: 768px) and (orientation: landscape) {
+  header {
+    height: 50px;
+  }
+
+  .site-login .row.jumbotron,
+  .site-registration .row.jumbotron {
+    margin-top: 60px;
+    padding: 25px 20px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+
+  #pass-label,
+  #reg-title {
+    font-size: 16px;
+    margin-bottom: 15px;
+  }
+
+  .modal-login_input,
+  .modal-reg_input {
+    font-size: 14px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+  }
+
+  .site-login button#sign-in,
+  .site-registration button#sign-up {
+    padding: 10px;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+
+  .login-signup-link-container,
+  .reg-login-link-container {
+    margin-top: 15px;
+  }
+
+  .login-signup-text,
+  .reg-login-text {
+    font-size: 12px;
+  }
+}
