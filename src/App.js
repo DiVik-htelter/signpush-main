@@ -3,6 +3,7 @@ import Layout from "./pages/layout";
 import Home from "./pages/home";
 import Documents from "./pages/documents";
 import Login from "./pages/login";
+import Registration from "./pages/registration";
 import RequireAuth from "./components/require-auth";
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
                 </Route>
 
                 <Route path="/login" element={<Login />}></Route>
+                <Route path="/registration" element={<Registration />}></Route>
             </Routes>
         </BrowserRouter>
     );

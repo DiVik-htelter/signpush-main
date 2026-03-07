@@ -77,7 +77,7 @@ function Login() {
             return;
         }
 
-        if (response?.data?.status == 0) { // success: true
+        if (response?.data?.status == 0) { 
             let expires = new Date()
             expires.setTime(expires.getTime() + 1000000);
 
@@ -92,8 +92,8 @@ function Login() {
             navigate(from, { replace: true });
 
         } else {
-            if (response?.data?.status == 3) {
-                setErrorMessage('Пожалуйста зарегистрируйтесь или активируйте аккаунт.');
+            if (response?.data?.status === 2) {
+                setErrorMessage('Не верный логин или пароль');
             } else {
                 setErrorMessage(response?.data?.message || 'Неверный пароль или почта.');
             }
@@ -137,6 +137,13 @@ function Login() {
                                 Продолжить
                             </button>
                         </form>
+
+                        <div className="login-signup-link-container">
+                            <p className="login-signup-text">
+                                Нет аккаунта?{' '}
+                                <a href="/registration" className="login-signup-link">Зарегистрируйтесь</a>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

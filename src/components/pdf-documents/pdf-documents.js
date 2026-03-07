@@ -48,7 +48,7 @@ function PdfDocuments() {
                     'id': 1,
                     'title': currentFile.name,
                     'hash': currentFile.hash,
-                    'created_at': 1234567,
+                    'created_at': Math.floor(Date.now() / 1000), // деление на 1000 и округление вниз необходимы для получения секунд
                     'login': Cookies.get('user'),
                     'base64': currentFile.base64
                  

@@ -2518,6 +2518,42 @@ label {
     bottom: -35px;
 }
 
+/* Registration link */
+.login-signup-link-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 25px;
+}
+
+.login-signup-text {
+    font-family: "Harmonia", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    font-weight: 400;
+    color: #333;
+    margin: 0;
+}
+
+.login-signup-link {
+    color: #058dd9;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease-in-out, text-decoration 0.3s ease-in-out;
+    margin-left: 5px;
+}
+
+.login-signup-link:hover,
+.login-signup-link:focus {
+    color: #286090;
+    text-decoration: underline;
+    outline: none;
+}
+
+.login-signup-link:active {
+    color: #204d74;
+}
+
 /* Large desktops and laptops */
 @media (min-width: 1200px) and (max-width: 1600px) {
     /* #description_preview {
@@ -4865,6 +4901,22 @@ label {
 
     .site-login label.form-label.modal_body__text {
         font-size: 14px;
+    }
+
+    /* Responsive styles for login signup link */
+    .login-signup-link-container {
+        margin-top: 20px;
+    }
+
+    .login-signup-text {
+        font-size: 14px;
+        flex-wrap: wrap;
+        display: flex;
+        justify-content: center;
+    }
+
+    .login-signup-link {
+        margin-left: 4px;
     }
 
     .site-login .row.jumbotron {

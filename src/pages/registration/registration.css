@@ -1,0 +1,382 @@
+/* REGISTRATION PAGE STYLES */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+html, body.page {
+    height: 100%;
+}
+
+/* Header */
+header {
+    padding: 0 17.5% 0 17.5%;
+    z-index: 100;
+    width: 65%;
+    height: 90px;
+    position: fixed;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #fff;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+
+#header_logo {
+    width: 200px;
+    height: auto;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+#header_logo:hover {
+    opacity: 0.8;
+}
+
+/* Registration Page */
+.site-registration .row.jumbotron {
+    padding: 60px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    -webkit-transform: translate(-50%, -50%);
+    -ms-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+    margin: 0;
+    background-color: #eeeeee;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    z-index: 50;
+}
+
+.site-registration .row .col-lg-12 {
+    padding: 0;
+}
+
+#reg-title {
+    font-family: "Harmonia", Arial, sans-serif;
+    font-weight: 400;
+    color: #000;
+    font-size: 28px;
+    line-height: 1.23;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.site-registration #registration-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.site-registration input.modal-reg_input {
+    margin-bottom: 12px;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    color: #333;
+    transition: border-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.site-registration input.modal-reg_input:focus {
+    outline: none;
+    border-color: #058dd9;
+    box-shadow: 0 0 5px rgba(5, 141, 217, 0.3);
+}
+
+.site-registration input.modal-reg_input::placeholder {
+    color: #999;
+    font-style: italic;
+}
+
+.site-registration button#sign-up {
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #058dd9;
+    border: 1px solid #058dd9;
+    color: #fff;
+    font-family: "Harmonia", Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+}
+
+.site-registration button#sign-up:hover:not(:disabled) {
+    background-color: #286090;
+    border-color: #204d74;
+}
+
+.site-registration button#sign-up:active:not(:disabled) {
+    background-color: #204d74;
+}
+
+.site-registration button#sign-up:disabled {
+    background-color: #999;
+    border-color: #999;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.site-registration .alert {
+    margin-top: 15px;
+    border-radius: 4px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    padding: 12px;
+}
+
+.site-registration .alert-danger {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.site-registration .alert-success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+/* Link to login page */
+.reg-login-link-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 25px;
+}
+
+.reg-login-text {
+    font-family: "Harmonia", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    font-weight: 400;
+    color: #333;
+    margin: 0;
+}
+
+.reg-login-link {
+    color: #058dd9;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease-in-out, text-decoration 0.3s ease-in-out;
+    margin-left: 5px;
+}
+
+.reg-login-link:hover,
+.reg-login-link:focus {
+    color: #286090;
+    text-decoration: underline;
+    outline: none;
+}
+
+.reg-login-link:active {
+    color: #204d74;
+}
+
+/* ============================================================================
+   АДАПТИВНЫЙ ДИЗАЙН ДЛЯ ПЛАНШЕТОВ И СМАРТФОНОВ
+   ============================================================================ */
+
+/* Планшеты (768px - 1024px) */
+@media (max-width: 1024px) {
+    header {
+        padding: 0 10%;
+        width: 80%;
+    }
+
+    #header_logo {
+        width: 150px;
+    }
+
+    .site-registration .row.jumbotron {
+        padding: 45px;
+        max-width: 90vw;
+    }
+
+    #reg-title {
+        font-size: 24px;
+        margin-bottom: 25px;
+    }
+
+    .site-registration input.modal-reg_input {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+
+    .site-registration button#sign-up {
+        padding: 10px;
+        font-size: 14px;
+    }
+}
+
+/* Смартфоны (до 768px) */
+@media (max-width: 768px) {
+    header {
+        padding: 0 10px;
+        width: calc(100% - 20px);
+        height: 70px;
+    }
+
+    #header_logo {
+        width: 120px;
+    }
+
+    .site-registration .row.jumbotron {
+        padding: 30px 20px;
+        max-width: 95vw;
+        margin: 0 auto;
+        position: relative;
+        top: auto;
+        left: auto;
+        transform: none;
+        -webkit-transform: none;
+        -ms-transform: none;
+        margin-top: 100px;
+    }
+
+    #reg-title {
+        font-size: 20px;
+        margin-bottom: 20px;
+    }
+
+    .site-registration input.modal-reg_input {
+        font-size: 16px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    .site-registration button#sign-up {
+        padding: 12px;
+        font-size: 16px;
+        min-height: 44px;
+        margin-top: 12px;
+    }
+
+    .reg-login-text {
+        font-size: 14px;
+    }
+
+    .reg-login-link-container {
+        margin-top: 20px;
+        flex-direction: column;
+    }
+
+    .reg-login-text {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .reg-login-link {
+        margin-left: 4px;
+    }
+
+    .site-registration .alert {
+        font-size: 13px;
+        padding: 10px;
+        margin-top: 12px;
+    }
+}
+
+/* Маленькие смартфоны (до 480px) */
+@media (max-width: 480px) {
+    header {
+        height: 60px;
+        padding: 0 5px;
+        width: calc(100% - 10px);
+    }
+
+    #header_logo {
+        width: 100px;
+    }
+
+    .site-registration .row.jumbotron {
+        padding: 20px 15px;
+        margin-top: 80px;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    #reg-title {
+        font-size: 18px;
+        margin-bottom: 18px;
+    }
+
+    .site-registration input.modal-reg_input {
+        font-size: 16px;
+        padding: 10px 10px;
+        margin-bottom: 8px;
+    }
+
+    .site-registration button#sign-up {
+        padding: 12px 10px;
+        font-size: 15px;
+        min-height: 44px;
+    }
+
+    .reg-login-text {
+        font-size: 13px;
+    }
+
+    .reg-login-link-container {
+        margin-top: 15px;
+    }
+}
+
+/* iPad Pro и очень большие смартфоны (1025px - 1200px) */
+@media (min-width: 1025px) and (max-width: 1200px) {
+    header {
+        padding: 0 12%;
+        width: 76%;
+    }
+
+    .site-registration .row.jumbotron {
+        padding: 50px;
+        max-width: 500px;
+    }
+}
+
+/* Ландшафтная ориентация на смартфонах */
+@media (max-width: 768px) and (orientation: landscape) {
+    header {
+        height: 60px;
+    }
+
+    .site-registration .row.jumbotron {
+        position: relative;
+        top: auto;
+        left: auto;
+        transform: none;
+        -webkit-transform: none;
+        -ms-transform: none;
+        margin-top: 70px;
+        padding: 30px 20px;
+        max-height: calc(100vh - 100px);
+        overflow-y: auto;
+    }
+
+    #reg-title {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+
+    .site-registration input.modal-reg_input {
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .site-registration button#sign-up {
+        margin-top: 10px;
+        padding: 10px;
+        font-size: 14px;
+    }
+}

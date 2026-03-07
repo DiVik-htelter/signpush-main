@@ -116,7 +116,7 @@ function Index() {
                         },
                     }
                 );
-                // добавить обновление страницы
+                window.location.reload()
 
     }
     return (
