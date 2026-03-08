@@ -119,6 +119,42 @@ function Index() {
                 window.location.reload()
 
     }
+
+    const saveDoc = async (i) => {
+        const doc = fileList[i]; // Получаем данные текущего документа из стейта
+    
+        try {
+            const response = await axios.get(
+                `http://127.0.0.1:8000/api/docs/download/`,
+                { 
+                    params: { doc_id: doc.id },
+                    headers : {
+                        'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09',
+                        'token': Cookies.get('token')
+                    },
+                    responseType: 'blob', // КРИТИЧНО: указываем, что ждем бинарные данные
+                }
+            );
+            console.log(response.data)
+            // Создаем временную ссылку в памяти браузера для Blob-объекта
+            const url = window.URL.createObjectURL(new Blob([response.data])); // response.data
+            const link = document.createElement('a');
+            link.href = url;
+            
+            // Устанавливаем имя файла (берем из объекта документа)
+            link.setAttribute('download', doc.title + '.pdf'); 
+            
+            // Добавляем ссылку в DOM, кликаем и удаляем
+            document.body.appendChild(link);
+            link.click();
+            
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url); // Освобождаем память
+        } catch (err) {
+            console.error("Ошибка при скачивании:", err);
+            alert("Не удалось скачать файл");
+        }
+    }
     return (
         <div className='documents'>
             <div className='summary'>
@@ -170,8 +206,8 @@ function Index() {
                             <div className='action-button'>
                                 <Button onClick={() => deleteDoc(i)}>Удалить</Button>
                             </div>
-                            <div className="action-button">
-                                <Button>Подпись</Button> {/*тут наверное будет располагатся логика внедрения подписи в документ и сохранение измененного вида в бд */}
+                            <div className='action-button'>
+                                <Button onClick={() => saveDoc(i)}>Скачать</Button>
                             </div>
                         </td>
                     </tr>

@@ -174,7 +174,7 @@ class PapersResponse(BaseModel):
 async def insert_docs(paper:Paper):
   
   try:
-    flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.login)
+    flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
     headers = {
       "Access-Control-Allow-Origin": "*"
     } 
@@ -191,14 +191,10 @@ async def insert_docs(paper:Paper):
     response_model=PapersResponse,
     summary="Получение списка документов",
     tags=["Документы"],
-    description="Получить список всех документов пользователя по его email адресу. Если параметр не указан, используется 'admin@gmail.com' по умолчанию"
+    description="Получить список всех документов пользователя по его email адресу"
 )
 async def get_docs(login):
-  """Получение списка документов по логину"""
-  if login is None:
-    login = 'admin@gmail.com'
-    print("Запрос без параметров")
-  
+  """Получение списка документов по логину""" 
   result = db.check_docs(str(login))
   total = len(result)
   message =f"There are {total} paperes"
@@ -212,7 +208,7 @@ async def doc_delete(doc_id:int):
   """Удаление документа по ID"""
   flag = False
   try:
-    flag = db.delet_doc(doc_id) # id документа, который автоматически выдается в базе данных 
+    flag = db.delet_document_by_id(doc_id) # id документа, который автоматически выдается в базе данных 
   except Exception as ex:
     print('Ошибка при удалениии документа из БД: ', ex)
   
@@ -448,8 +444,24 @@ async def register_user(user: newUser):
   except Exception as ex:
     print(f"Ошибка непостредственно в роуте register_user", ex)
 
+import base64
+from fastapi.responses import Response
+@app.get("/api/docs/download/", tags=["Документы"], summary="Скачивание документа по id")
+async def download_docs(doc_id:int):   
+    doc = db.get_document_by_id(doc_id)
+    doc_title = doc['title']
+    doc = doc['base64']
+    s = 'data:application/pdf;base64,' # подстрока, которую нужно удалить из base64
+    if "," in doc:
+        header, base64_str = doc.split(",", 1)
+    else:
+        base64_str = doc
 
-
+    headers = {
+        'Content-Disposition': f'attachment;' # добавить бы filename, но он плохо воспринимает кириллицу, имей в виду
+    }
+    file_bytes = base64.b64decode(base64_str)
+    return Response(headers=headers, content=file_bytes)
 
 
   # uvicorn main:app --reload
