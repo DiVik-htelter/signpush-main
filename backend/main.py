@@ -1,14 +1,16 @@
-from fastapi import FastAPI, Response, Query, Path
-from starlette.responses import JSONResponse
-from fastapi.responses import HTMLResponse
 import uvicorn
-from pydantic import BaseModel, Field
-import time
+from time import time
+from hashlib import sha256
 from typing import List, Optional
-from database import Database
-from pdf_signer import PdfSigner
-
+from fastapi import FastAPI
+from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+from database import Database
+from pdf_signer import add_signature_to_pdf, validate_signature_params
+
+
 
 app = FastAPI(
     title="SignPush API",
@@ -29,22 +31,17 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Список источников
-    allow_credentials=True,  # Разрешить Cookies
-    allow_methods=["*"],  # Разрешить все методы (GET, POST, etc.)
-    allow_headers=["*"],  # Разрешить все заголовки
+    allow_credentials=True, # Разрешить Cookies
+    allow_methods=["*"],    # Разрешить все методы (GET, POST, etc.)
+    allow_headers=["*"],    # Разрешить все заголовки
 )
 newToken = None
 
-# статусы ответов :
-# 0 - успешный вход
-# 2 - логин или пароль не верные
-# 3 - нет связи с бд
-# 4 - иная ошибка
-
-SUCCESS_STATUS = 0
-INVALID_CREDENTIALS_STATUS = 2
-DB_CONNECTION_ERROR_STATUS = 3
-GENERAL_ERROR_STATUS = 4
+# статусы ответов на фронт:
+SUCCESS_STATUS = 0              # 0 - успешный вход
+INVALID_CREDENTIALS_STATUS = 2  # 2 - логин или пароль не верные или совпадают
+DB_CONNECTION_ERROR_STATUS = 3  # 3 - нет связи или ошибка с бд
+GENERAL_ERROR_STATUS = 4        # 4 - иная ошибка
 
 
 def chek_auth(c_login:str, c_password:str):
@@ -53,7 +50,7 @@ def chek_auth(c_login:str, c_password:str):
 
     global newToken 
     if db.check_user(c_login, c_password):
-      timeToLogin = time.time()
+      timeToLogin = time()
       sumToData = c_login + c_password
       newToken = hash(str(timeToLogin) + sumToData)
       return {
@@ -63,7 +60,7 @@ def chek_auth(c_login:str, c_password:str):
       }
     else: return {
         "status" : INVALID_CREDENTIALS_STATUS,
-        "message": "Не верный логин или пароль"
+        "message": "Не верный логин или пароль."
     }
   except Exception as exept:
     print(exept)
@@ -73,8 +70,11 @@ def chek_auth(c_login:str, c_password:str):
     }
 
 
-
 class oldUser(BaseModel):
+  """
+  Образ пользователя с такими данными как: \n
+  mail: почта / логин\n
+  password: пароль """
   mail: str = Field(
       ..., 
       description="Email пользователя (логин)",
@@ -92,7 +92,7 @@ class AuthResponse(BaseModel):
   status: int = Field(
       ..., 
       description="Код статуса: 0 - успешно, 2 - неверные данные, 4 - ошибка",
-      json_schema_extra={"example": 0}
+      json_schema_extra={"example": SUCCESS_STATUS}
   )
   token: Optional[int] = Field(
       None, 
@@ -122,7 +122,7 @@ async def chek_login(old_user: oldUser):
       "Access-Control-Allow-Origin": "*"
     } 
   except Exception as exept:
-    print("Ошибка непосредственно в роуте: "+ exept) 
+    print("Ошибка непосредственно в роуте: ", exept) 
 
   return JSONResponse(content=content, headers=headers)
 
@@ -142,17 +142,17 @@ class Paper(BaseModel):
       description="SHA256 хеш документа для проверки целостности",
       json_schema_extra={"example": "a1b2c3d4e5f6..."}
   )
-  created_at: int = Field(
-      ..., 
-      description="Время создания документа (Unix timestamp в секундах)",
-      json_schema_extra={"example": 1704067200}
-  )
   base64: str = Field(
       ..., 
       description="Содержимое документа в формате Base64",
       json_schema_extra={"example": "JVBERi0xLjQKJeHo8OXo8eHo8eHo..."}
   )
-  login: str = Field(
+  created_at: int = Field(
+      ..., 
+      description="Время создания документа (Unix timestamp в секундах)",
+      json_schema_extra={"example": 1704067200}
+  )
+  email: str = Field(
       ..., 
       description="Email владельца документа",
       json_schema_extra={"example": "admin@gmail.com"}
@@ -170,37 +170,7 @@ class PapersResponse(BaseModel):
       description="Список документов пользователя"
   )
 
-
-@app.get(
-    "/api/docs", 
-    response_model=PapersResponse,
-    summary="Получение списка документов",
-    tags=["Документы"],
-    description="Получить список всех документов пользователя по его email адресу. Если параметр не указан, используется 'admin@gmail.com' по умолчанию"
-)
-async def get_docs(
-    login: str | None = Query(
-        None, 
-        description="Email адрес пользователя для получения его документов",
-        json_schema_extra={"example": "admin@gmail.com"}
-    )
-):
-  """Получение списка документов по логину"""
-  if login is None:
-    login = 'admin@gmail.com'
-    print("Запрос без параметров")
-  
-  result = db.check_docs(str(login))
-  total = len(result)
-  message =f"There are {total} paperes"
-
-  papers_list = [Paper(**doc) for doc in result]
-  
-  return PapersResponse(message=message, papers=papers_list)
-
-
-
-@app.post("/api/insertDocs")
+@app.post("/api/insertDocs", tags=["Документы"])
 async def insert_docs(paper:Paper):
   
   try:
@@ -216,7 +186,28 @@ async def insert_docs(paper:Paper):
 
   return JSONResponse(content=content, headers=headers)
 
-@app.delete("/api/docs/{doc_id}")
+@app.get(
+    "/api/docs", 
+    response_model=PapersResponse,
+    summary="Получение списка документов",
+    tags=["Документы"],
+    description="Получить список всех документов пользователя по его email адресу. Если параметр не указан, используется 'admin@gmail.com' по умолчанию"
+)
+async def get_docs(login):
+  """Получение списка документов по логину"""
+  if login is None:
+    login = 'admin@gmail.com'
+    print("Запрос без параметров")
+  
+  result = db.check_docs(str(login))
+  total = len(result)
+  message =f"There are {total} paperes"
+
+  papers_list = [Paper(**doc) for doc in result]
+  
+  return PapersResponse(message=message, papers=papers_list)
+
+@app.delete("/api/docs", tags=["Документы"])
 async def doc_delete(doc_id:int):
   """Удаление документа по ID"""
   flag = False
@@ -330,7 +321,7 @@ async def sign_document(request: SignatureRequest):
         print(f"\n[API] Received signature request for document ID: {request.document_id}")
         
         # Валидация параметров подписи
-        valid, error_msg = PdfSigner.validate_signature_params(
+        valid, error_msg = validate_signature_params(
             request.page_number, request.x, request.y, 
             request.width, request.height
         )
@@ -356,8 +347,9 @@ async def sign_document(request: SignatureRequest):
         print(f"[API] Original document retrieved: {doc['title']}")
         
         # Встраиваем подпись в PDF
-        signer = PdfSigner()
-        signed_pdf, success = signer.add_signature_to_pdf(
+        
+        
+        signed_pdf, success = add_signature_to_pdf(
             pdf_base64=doc['base64'],
             signature_base64=request.signature_base64,
             page_number=request.page_number,
@@ -377,12 +369,9 @@ async def sign_document(request: SignatureRequest):
             )
         
         # Вычисляем новый хеш подписанного документа
-        import hashlib
         signed_pdf_clean = signed_pdf.split('base64,')[-1] if 'base64,' in signed_pdf else signed_pdf
-        new_hash = hashlib.sha256(signed_pdf_clean.encode()).hexdigest()
-        
-        print(f"[API] New hash calculated: {new_hash[:16]}...")
-        
+        new_hash = sha256(signed_pdf_clean.encode()).hexdigest()
+                
         # Подготавливаем данные о подписи для сохранения
         signature_data = {
             'signature_base64': request.signature_base64,
@@ -397,9 +386,9 @@ async def sign_document(request: SignatureRequest):
         new_doc_id = db.insert_signed_document(
             title=f"{doc['title']} (Подписан)",
             hash=new_hash,
-            created_at=int(time.time()),
+            created_at=int(time()),
             base64=signed_pdf,
-            login=request.login,
+            email=request.login,
             original_doc_id=request.document_id,
             signer=request.login,
             signature_data=signature_data
@@ -430,6 +419,37 @@ async def sign_document(request: SignatureRequest):
             content={"success": False, "message": str(ex)},
             status_code=500
         )
+
+class newUser(BaseModel):
+   email:str
+   password: str
+   first_name:str
+   last_name:str
+
+
+@app.post("/api/register/", tags=["Регистрация"])
+async def register_user(user: newUser):
+  """Регистрация нового пользователя"""
+  flag = False
+  print(user)
+  try:
+    name = {
+       'firstName': user.first_name,
+       'lastName': user.last_name,
+    }
+    flag = db.insert_user(user.email, user.password, name)
+    if flag:
+        content = {'status': SUCCESS_STATUS,
+               'message': 'Успешная регистрация!'}
+    else:
+        content = {'status': INVALID_CREDENTIALS_STATUS}
+    
+    return JSONResponse(content=content)    
+  except Exception as ex:
+    print(f"Ошибка непостредственно в роуте register_user", ex)
+
+
+
 
 
   # uvicorn main:app --reload

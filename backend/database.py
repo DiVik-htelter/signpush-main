@@ -1,6 +1,9 @@
 import psycopg2
+from psycopg2 import errorcodes
 import psycopg2.extras
 from config_db import user, host, password, db_name,port
+from hashlib import sha256
+from time import time
 
 
 class Database:
@@ -15,6 +18,9 @@ class Database:
         password=password,
         dbname=db_name,
         port=port )
+      
+      # Включение автокоммита
+      self.connection.autocommit = True
       with self.connection.cursor() as cursor:
         cursor.execute("SELECT version();")
         print(f"Server version: {cursor.fetchone()}")
@@ -32,87 +38,68 @@ class Database:
       print("[INFO] PostgreSQL connection closed")
 
 
-
-  def _create_table_users_simple(self):
-      """
-      Приватный метод: создаёт таблицу users.
-      (тестовое создание таблицы, нуждается в оптимизации)
-      """
-      if not self.connection:
-          raise ConnectionError("No active database connection")
-      with self.connection.cursor() as cursor:
-          cursor.execute("""
-              CREATE TABLE users(
-                  id serial PRIMARY KEY,
-                  login varchar(50) NOT NULL,
-                  password varchar(50) NOT NULL
-              );""")
-          self.connection.commit()
-          print("[INFO] Table created successfully")
-
-  def check_originality_login(self, login: str) -> bool:
-    """
-    Публичный метод: проверяет уникальность логина при регистрации.
-    Использует параметризованные запросы для защиты от SQL-инъекций.
-    """
-    if not self.connection:
-        raise ConnectionError("No active database connection")
-    try:
-      with self.connection.cursor() as cursor:
-        # Параметризованный запрос - безопасен от SQL-инъекций
-        cursor.execute("SELECT id FROM users WHERE login = %s;", (login,))
-        result = cursor.fetchone()
-        if result:
-          print(f"[INFO] Login {login} is already taken")
-          return False 
-        else:
-          print(f"[INFO] Login {login} is available")
-          return True 
-    except Exception as ex:
-      print("[ERROR] Error in check_originality_login:", ex)
-      return False
-
-  def insert_user(self, login: str, password: str) -> bool:
+  def insert_user(self, login: str, password: str, name:dict | None = None) -> bool:
     """
     Публичный метод: добавляет пользователя в таблицу users.
     Использует параметризованные запросы для защиты от SQL-инъекций.
+    Args:
+    name: dict= {'firstName': 'name', 'lastName': 'name'} | None
     """
+    password_hash = sha256(password.encode()).hexdigest()
+
     if not self.connection:
       raise ConnectionError("No active database connection")
     try:
       with self.connection.cursor() as cursor:
         # Используем %s плейсхолдеры для параметризованного запроса
-        cursor.execute(
-            "INSERT INTO users (login, password) VALUES (%s, %s);",
-            (login, password)
-        )
+        if name is None:
+          cursor.execute(
+              "INSERT INTO users (email, password_hash) VALUES (%s, %s);",
+              (login, password_hash)
+          )
+        # тут нужна проверка и валидация параметра name более тщательная 
+        elif 'firstName' in name and 'lastName' in name: 
+          cursor.execute(
+              "INSERT INTO users (email, password_hash, first_name, last_name) VALUES (%s, %s, %s, %s);",
+                (login, password_hash, name['firstName'], name['lastName'])
+          )
+        else: 
+          print("[INFO] Не валидная структура name", name)
+          return False
         self.connection.commit()
         print(f"[INFO] User {login} was successfully inserted")
+        
         return True
-    except Exception as ex:
-      print('[ERROR] Error in the insert_user ', ex)
+      
+    except psycopg2.Error as ex:
+      if ex.pgcode == errorcodes.UNIQUE_VIOLATION:
+        print("[INFO] Email is not originality", ex)
+        # нужно следать что то польше, чем строка в консоль, например отправить на API сообщение, о том что это не ошибка бд, а именно проблема уникальности
+      else:
+        print('[ERROR] Error in the insert_user ', ex)
+      
+      return False
 
 
-
-
-  def check_user(self, login: str, password: str) -> int:
+  def check_user(self, email: str, password: str) -> bool:
     """
     Публичный метод: проверяет существование пользователя с указанным паролем.
     Использует параметризованные запросы для защиты от SQL-инъекций.
     **Возвращает:**
-    - 0: Успешная аутентификация
-    - 2: Неверный логин или пароль
-    - 3: Ошибка подключения к базе данных
+    - True - прошел регистрацию
+    - False - логин или пароль не совпадают
     """
+    password_hash = sha256(password.encode()).hexdigest()
+
     if not self.connection:
         raise ConnectionError("No active database connection")
     try:
       with self.connection.cursor() as cursor:
         # Параметризованный запрос - безопасен от SQL-инъекций
-        cursor.execute("SELECT password FROM users WHERE login = %s;", (login,))
+        cursor.execute("SELECT password_hash FROM users WHERE email = %s;", (email,))
         result = cursor.fetchone()
        
-        if result and result[0] == password:
+        if result and result[0] == password_hash:
           print("[INFO] User checked successfully")
           return True
       
@@ -121,10 +108,9 @@ class Database:
       print("[ERROR] Error in the check_user:", ex)
     
     return False
-    
-  
+     
 
-  def check_docs(self, login:str) -> list:
+  def check_docs(self, email:str) -> list:
     """
     Публичный метод: вытаскивает все документы загруженные или отправленные конкретному пользователю.
     Использует параметризованные запросы для защиты от SQL-инъекций.
@@ -140,14 +126,14 @@ class Database:
                 d.id,
                 d.title,
                 d.hash,
-                d.created_at,
                 d.base64,
-                u.login
+                d.created_at,
+                u.email
             FROM documents d
-            JOIN users u ON d.user_id = u.id
-            WHERE u.login = %s
+            JOIN users u ON d.owner_id = u.id
+            WHERE u.email = %s
             ORDER BY d.created_at DESC;
-        """, (login,)) 
+        """, (email,)) 
         results = cursor.fetchall()
         return results
       
@@ -155,10 +141,9 @@ class Database:
       print("[ERROR] Error in the check_docs:", ex)
     
     return []
-      
+    
 
-
-  def insert_doc(self, title:str, hash:str, created_at:int, base64:str, login:str):
+  def insert_doc(self, title:str, hash:str, created_at:int, base64:str, email:str):
     """
     Публичный метод: добавление документа в базу данных.
     Использует параметризованные запросы для защиты от SQL-инъекций.
@@ -168,18 +153,18 @@ class Database:
         hash: SHA-256 хеш документа
         created_at: Unix timestamp создания
         base64: Содержимое PDF в base64
-        login: Email пользователя
+        email: Email пользователя
     """
     if not self.connection:
       raise ConnectionError("No Activate database connection")
     try:
-      print(f'[INFO]\ntitle:{title}\nhash:{hash}\ncreated_at:{created_at}\nbase64:{base64[:64]}...\nlogin:{login}')
+      print(f'[INFO]\ntitle:{title}\nhash:{hash}\ncreated_at:{created_at}\nbase64:{base64[:64]}...\nlogin:{email}')
       with self.connection.cursor() as cursor:
         # Параметризованный запрос с подзапросом для получения user_id
         cursor.execute("""
-          INSERT INTO documents (title, hash, created_at, base64, user_id)
-          VALUES (%s, %s, %s, %s, (SELECT id FROM users WHERE login = %s));
-        """, (title, hash, created_at, base64, login)) 
+          INSERT INTO documents (title, hash, base64, owner_id)
+          VALUES (%s, %s, %s, (SELECT id FROM users WHERE email = %s));
+        """, (title, hash, base64, email)) 
         self.connection.commit()
         print(f"[INFO] Document {title} was successfully inserted")
         return True
@@ -187,8 +172,6 @@ class Database:
       print("[ERROR] Error in insert_doc:", ex)
     
     return False
-
-
 
   def delet_doc(self, id: int) -> bool:
     """
@@ -235,9 +218,9 @@ class Database:
                 d.hash,
                 d.created_at,
                 d.base64,
-                u.login
+                u.email
             FROM documents d
-            JOIN users u ON d.user_id = u.id
+            JOIN users u ON d.owner_id = u.id
             WHERE d.id = %s;
         """, (doc_id,))
         result = cursor.fetchone()
@@ -254,8 +237,33 @@ class Database:
       return None
 
 
+  def __create_void_signature_rout(self, document_id, email, signature_note:str = None, deadline:int = None):
+    """Создание пустой задачи для единовременной подписи
+      Если клиент хочет просто зайти и подписать сам свой документ,
+      что бы не нагружать его лишним созданием задачи и не ломать триггеры в бд"""
+    result = None
+    if deadline is None:
+      deadline = int(time()) + 10
+
+    if not self.connection:
+      raise ConnectionError("No active database connection")
+    try:
+      with self.connection.cursor() as cursor:
+        cursor.execute("""
+          INSERT INTO signature_routes (document_id, required_signer_id, order_index, signature_note, deadline_at)
+          VALUES (%s, (SELECT id FROM users WHERE email = %s), %s, %s, %s)
+          RETURNING id;
+        """, (document_id, email, '1', signature_note, deadline))
+        result = cursor.fetchone[0]
+        self.connection.commit()
+      return result
+    except Exception as ex:
+      print("[ERROR] Error in __create_void_signature_rout ", ex)
+        
+
+
   def insert_signed_document(self, title: str, hash: str, created_at: int, 
-                             base64: str, login: str, original_doc_id: int = None,
+                             base64: str, email: str, original_doc_id: int = None,
                              signer: str = None, signature_data: dict = None) -> int | None:
     """
     Публичный метод: добавляет подписанный документ в базу данных.
@@ -266,7 +274,7 @@ class Database:
         hash: SHA-256 хеш подписанного документа
         created_at: Unix timestamp создания
         base64: Содержимое подписанного PDF в base64
-        login: Email пользователя (владельца документа)
+        email: Email пользователя (владельца документа)
         original_doc_id: ID оригинального документа (опционально)
         signer: Email подписавшего пользователя (опционально)
         signature_data: Дополнительные данные о подписи (координаты, размер и т.д.)
@@ -281,29 +289,30 @@ class Database:
       with self.connection.cursor() as cursor:
         # Вставляем подписанный документ
         cursor.execute("""
-          INSERT INTO documents (title, hash, created_at, base64, user_id)
-          VALUES (%s, %s, %s, %s, (SELECT id FROM users WHERE login = %s))
+          INSERT INTO documents (title, hash, base64, owner_id, created_at)
+          VALUES (%s, %s, %s,(SELECT id FROM users WHERE email = %s), %s)
           RETURNING id;
-        """, (title, hash, created_at, base64, login))
+        """, (title, hash, base64, email, created_at))
         
         # Получаем ID только что вставленного документа
         new_doc_id = cursor.fetchone()[0]
-        
+        # Получаем ID тлько что сделанной задачи, что бы триггеры не сломались
+        signature_route_id = self.__create_void_signature_rout(new_doc_id,email)
         # Если есть данные о подписи, сохраняем их в отдельную таблицу (если она существует)
         if signature_data and signer:
           try:
             cursor.execute("""
               INSERT INTO document_signatures 
-              (document_id, signer_id, signature_image_base64, page_number, 
-               x_position, y_position, width, height, signed_at)
+              (document_id, signer_id, signature_route_id, signature_image_base64, page_number, 
+               x_position, y_position, width, height)
               VALUES (
                 %s, 
-                (SELECT id FROM users WHERE login = %s),
-                %s, %s, %s, %s, %s, %s, NOW()
-              );
+                (SELECT id FROM users WHERE email = %s),
+                %s, %s, %s, %s, %s, %s, %s );
             """, (
               new_doc_id,
               signer,
+              signature_route_id,
               signature_data.get('signature_base64', ''),
               signature_data.get('page_number', 0),
               signature_data.get('x', 0),

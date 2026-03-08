@@ -365,9 +365,18 @@ export default function PdfReader({file, documentId}) {
                   </>
                 ) : (
                   <>
-                    <i className="bi bi-save"></i> Сохранить подпись
+                    <i className="bi bi-save"></i> Подписать
                   </>
                 )}
+              </button>
+            </div>
+            <div className='col col-auto'>
+
+              <button
+              type='button'
+              className='btn btn-success'
+              onClick={console.log('logging')}
+              > Отправить на подпись
               </button>
             </div>
         </div>

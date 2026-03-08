@@ -27,7 +27,8 @@ function Header() {
             <div className="collapse navbar-collapse" id="navbarNavDropdown">
                 <ul className="navbar-nav">
                     <li className="nav-item">
-                        <Link className="nav-link" to="/">Создать документ </Link>
+                        {/* тут нужно не перенаправлять на бесполезную страничку, а сразу открывать проводник и загружать файл в бд */}
+                        <Link className="nav-link" to="/">Загрузить документ </Link> 
                     </li>
                     <li className="nav-item">
                         <Link className="nav-link" to="/documents">Документы</Link>

@@ -12,10 +12,10 @@ function App() {
             <Routes>
                 <Route element={<RequireAuth />}> {/* RequireAuth - это защищенный маршрут Все вложенные в него Route будут проверяться на авторизацию  */}
                     <Route path="/" element={<Layout />}>
-                        <Route index element={<Home />} /> {/* index это дочерний маршрут, который отображается по умолчанию, когда родительский маршрут активен (path="/") */}
+                        <Route index element={<Documents />} />  {/* страница с загруженными документами в БД */}
                     </Route>
                     <Route path="/documents" element={<Layout />}>
-                        <Route index element={<Documents />} />  {/* страница с загруженными документами в БД */}
+                        <Route index element={<Home />} /> {/* index это дочерний маршрут, который отображается по умолчанию, когда родительский маршрут активен (path="/") */}
                     </Route>
                 </Route>
 
