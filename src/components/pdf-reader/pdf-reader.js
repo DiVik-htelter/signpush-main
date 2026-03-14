@@ -12,7 +12,7 @@ export default function PdfReader({file, documentId}) {
     const [pages, setPages] = useState([1]);
     const [pdf, setPdf] = useState([1]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [isThumbnailsVisible, toogleTumbnail] = useState(false);
+    const [isThumbnailsVisible, toogleTumbnail] = useState(false); // состояние кнопки отображения "оглавления" документа
     const [pdfRef, setPdfRef] = useState("");
     const [squareX, setXCoord] = useState(null);
     const [squareY, setYCoord] = useState(null);
@@ -20,7 +20,8 @@ export default function PdfReader({file, documentId}) {
     const [squareHeight, setHeight] = useState(null);
     const [isSaving, setIsSaving] = useState(false); // Флаг процесса сохранения
     const [signatureImageData, setSignatureImageData] = useState(null); // Данные подписи
-    const zoomScale = 1;
+    const [zoomScale, setZoomScale] = useState(1) // 1.0 = 100%
+    //const zoomScale = 1; 
     const rotateAngle = 0;
     var pdf_image = "";
 
@@ -113,7 +114,7 @@ export default function PdfReader({file, documentId}) {
       offsetX = canvasOffset.left;
       offsetY = canvasOffset.top;
     }
-  }, [canvasOfDoc, pdfRef,  renderPage, file]);
+  }, [canvasOfDoc, pdfRef,  zoomScale, renderPage, file]);
 
   function handleMouseIn(e) {
     if (typeof pdf_image == "string") {
