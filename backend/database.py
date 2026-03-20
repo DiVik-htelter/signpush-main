@@ -81,7 +81,7 @@ class Database:
       return False
 
 
-  def check_user(self, email: str, password: str) -> bool:
+  def check_user(self, email: str, password: str) -> int:
     """
     Публичный метод: проверяет существование пользователя с указанным паролем.
     Использует параметризованные запросы для защиты от SQL-инъекций.
@@ -89,10 +89,16 @@ class Database:
     - True - прошел регистрацию
     - False - логин или пароль не совпадают
     """
+    SUCCESS_STATUS = 0              # 0 - успешный вход
+    INVALID_CREDENTIALS_STATUS = 2  # 2 - логин или пароль не верные или совпадают
+    DB_CONNECTION_ERROR_STATUS = 3  # 3 - нет связи или ошибка с бд
+    GENERAL_ERROR_STATUS = 4        # 4 - иная ошибка
+
     password_hash = sha256(password.encode()).hexdigest()
 
     if not self.connection:
-        raise ConnectionError("No active database connection")
+      return DB_CONNECTION_ERROR_STATUS
+        
     try:
       with self.connection.cursor() as cursor:
         # Параметризованный запрос - безопасен от SQL-инъекций
@@ -101,16 +107,15 @@ class Database:
        
         if result and result[0] == password_hash:
           print("[INFO] User checked successfully")
-          return True
+          return SUCCESS_STATUS
       
-      return False
+      return INVALID_CREDENTIALS_STATUS
     except Exception as ex:
       print("[ERROR] Error in the check_user:", ex)
+      return ex
     
-    return False
-     
 
-  def check_docs(self, email:str) -> list:
+  def get_all_list_docs(self, email:str) -> list:
     """
     Публичный метод: вытаскивает все документы загруженные или отправленные конкретному пользователю.
     Использует параметризованные запросы для защиты от SQL-инъекций.
@@ -139,7 +144,6 @@ class Database:
       
     except Exception as ex:
       print("[ERROR] Error in the check_docs:", ex)
-    
     return []
     
 
@@ -173,7 +177,7 @@ class Database:
     
     return False
 
-  def delet_doc(self, id: int) -> bool:
+  def delet_document_by_id(self, id: int) -> bool:
     """
     Публичный метод: удаляет документ по уникальному id из БД.
     Использует параметризованные запросы для защиты от SQL-инъекций.
@@ -243,7 +247,7 @@ class Database:
       что бы не нагружать его лишним созданием задачи и не ломать триггеры в бд"""
     result = None
     if deadline is None:
-      deadline = int(time()) + 10
+      deadline = int(time()) + 100
 
     if not self.connection:
       raise ConnectionError("No active database connection")
@@ -297,7 +301,8 @@ class Database:
         # Получаем ID только что вставленного документа
         new_doc_id = cursor.fetchone()[0]
         # Получаем ID тлько что сделанной задачи, что бы триггеры не сломались
-        signature_route_id = self.__create_void_signature_rout(new_doc_id,email)
+        #signature_route_id = self.__create_void_signature_rout(new_doc_id,email) # Идея толковая, но почему то в БД создается подпись, но не привязанная к маршруту
+        signature_route_id = None
         # Если есть данные о подписи, сохраняем их в отдельную таблицу (если она существует)
         if signature_data and signer:
           try:
@@ -331,4 +336,64 @@ class Database:
         
     except Exception as ex:
       print(f"[ERROR] Error in insert_signed_document: {ex}")
+      return None
+
+
+  def get_user_by_email(self, email: str) -> dict | None:
+    """
+    Публичный метод: получает данные человека по его почте.
+    
+    Args:
+        email: Уникальный идентификатор пользователя
+        
+    Returns:
+        Словарь с данными пользователя или None, если не найден
+    """
+    if not self.connection:
+      raise ConnectionError("No active database connection")
+    try:
+      with self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+        cursor.execute("""
+            SELECT 
+                u.id,
+                u.first_name,
+                u.last_name,
+                u.is_email_verified,
+                u.created_at
+            FROM users u
+            WHERE u.email = %s;
+        """, (email,))
+        result = cursor.fetchone()
+        
+        if result:
+          print(f"[INFO] User: {email} retrieved successfully")
+          return dict(result)
+        else:
+          print(f"[ERROR] User: {email} not found")
+          return None
+          
+    except Exception as ex:
+      print(f"[ERROR] Error in get_user_by_email: {ex}")
+      return None
+
+
+  def change_userName_by_id (self, id, new_first_name:str, new_last_name:str): 
+    
+    if not self.connection:
+      raise ConnectionError("No active database connection")
+    try:
+      with self.connection.cursor() as cursor:
+        cursor.execute("""
+            UPDATE users 
+            SET 
+              first_name = %s, 
+              last_name = %s,
+              updated_at = EXTRACT(EPOCH FROM NOW())::BIGINT
+            WHERE id = %s;
+        """, (new_first_name, new_last_name, id))
+        
+      print(f'[INFO] User name {new_first_name} successfulle change')
+          
+    except Exception as ex:
+      print(f"[ERROR] Error in change_userName_by_id: {ex}")
       return None

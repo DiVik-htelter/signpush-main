@@ -1,5 +1,5 @@
 -- ============================================================================
--- СХЕМА БД SignPush (MVP) - UNIX TIMESTAMP EDITION
+-- СХЕМА БД SignPush (MVP) 
 -- ============================================================================
 
 -- 1. ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ
@@ -104,17 +104,23 @@ CREATE TABLE IF NOT EXISTS document_transfers (
 );
 
 -- 6. ЛОГИ АУДИТА
-CREATE TABLE IF NOT EXISTS audit_logs (
+CREATE TABLE audit_logs (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    -- Убираем REFERENCES, чтобы ID не обнулялся при удалении пользователя
+    user_id INTEGER, 
     action_type VARCHAR(100) NOT NULL,
-    document_id INTEGER REFERENCES documents(id) ON DELETE SET NULL,
+    -- Убираем REFERENCES, чтобы ID документа сохранялся для истории
+    document_id INTEGER, 
     ip_address VARCHAR(45),
     created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     description TEXT,
     status VARCHAR(50) DEFAULT 'success',
     error_message TEXT
 );
+
+-- Индексы для быстрого поиска по логам (теперь они особенно важны)
+CREATE INDEX idx_audit_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_document_id ON audit_logs(document_id);
 
 -- 7. СЕРТИФИКАТЫ
 CREATE TABLE IF NOT EXISTS certificates (
@@ -185,23 +191,56 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_signature_added AFTER INSERT ON document_signatures FOR EACH ROW EXECUTE FUNCTION update_document_signing_status();
 
 -- 3. Автоматический аудит действий
-CREATE OR REPLACE FUNCTION log_document_activity()
+CREATE OR REPLACE FUNCTION log_user_activity()
 RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
-        INSERT INTO audit_logs (user_id, action_type, document_id, description)
-        VALUES (NEW.owner_id, 'document_created', NEW.id, 'Документ загружен: ' || NEW.title);
+        INSERT INTO audit_logs (user_id, action_type, description)
+        VALUES (NEW.id, 'user_created', 'Создан новый пользователь: ' || NEW.username);
     ELSIF (TG_OP = 'UPDATE') THEN
-        IF (OLD.signing_status != NEW.signing_status AND NEW.signing_status = 'fully_signed') THEN
-            INSERT INTO audit_logs (user_id, action_type, document_id, description)
-            VALUES (NEW.owner_id, 'document_fully_signed', NEW.id, 'Завершено подписание документа');
-        END IF;
+        INSERT INTO audit_logs (user_id, action_type, description)
+        VALUES (NEW.id, 'user_updated', 'Данные пользователя изменены');
     END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_audit_docs AFTER INSERT OR UPDATE ON documents FOR EACH ROW EXECUTE FUNCTION log_document_activity();
+-- Триггер на создание и обновление пользователя
+CREATE TRIGGER trg_audit_users
+AFTER INSERT OR UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION log_user_activity();
+
+CREATE OR REPLACE FUNCTION log_document_activity()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 1. Создание документа
+    IF (TG_OP = 'INSERT') THEN
+        INSERT INTO audit_logs (user_id, action_type, document_id, description)
+        VALUES (NEW.owner_id, 'document_created', NEW.id, 'Документ загружен: ' || NEW.title);
+        RETURN NEW;
+
+    -- 2. Изменение (подписание) документа
+    ELSIF (TG_OP = 'UPDATE') THEN
+        IF (OLD.signing_status != NEW.signing_status AND NEW.signing_status = 'fully_signed') THEN
+            INSERT INTO audit_logs (user_id, action_type, document_id, description)
+            VALUES (NEW.owner_id, 'document_fully_signed', NEW.id, 'Завершено подписание документа');
+        END IF;
+        RETURN NEW;
+
+    -- 3. Удаление документа
+    ELSIF (TG_OP = 'DELETE') THEN
+        INSERT INTO audit_logs (user_id, action_type, document_id, description)
+        VALUES (OLD.owner_id, 'document_deleted', OLD.id, 'Документ удален: ' || OLD.title);
+        RETURN OLD;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Обновляем сам триггер, добавив событие DELETE
+DROP TRIGGER IF EXISTS trg_audit_docs ON documents;
+CREATE TRIGGER trg_audit_docs 
+AFTER INSERT OR UPDATE OR DELETE ON documents 
+FOR EACH ROW EXECUTE FUNCTION log_document_activity();
 
 -- 4. Защита от подписания закрытых документов
 CREATE OR REPLACE FUNCTION prevent_signing_closed_docs()
