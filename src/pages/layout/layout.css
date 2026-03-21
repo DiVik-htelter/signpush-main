@@ -1,0 +1,66 @@
+.layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #fff;
+}
+
+.layout-container {
+    display: flex;
+    flex: 1;
+    position: relative;
+}
+
+.layout-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+.layout-content .container {
+    flex: 1;
+    width: 100%;
+    padding: 20px;
+    max-width: 100%;
+    margin: 0;
+}
+
+/* На десктопе (769px и больше) - контент смещается на ширину sidebar */
+@media (min-width: 769px) {
+    .layout-content {
+        margin-left: 280px;
+        transition: margin-left 0.3s ease;
+    }
+
+    .layout-content.sidebar-collapsed {
+        margin-left: 80px;
+    }
+
+    .layout-content .container {
+        padding: 20px;
+        max-width: 100%;
+        margin: 0;
+    }
+}
+
+/* На мобильных (768px и меньше) - сайдбар как оверлей */
+@media (max-width: 768px) {
+    .layout-content {
+        margin-left: 0;
+    }
+
+    .layout-content .container {
+        padding: 15px;
+        max-width: 100%;
+        margin: 0;
+    }
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 480px) {
+    .layout-content .container {
+        padding: 12px;
+    }
+}

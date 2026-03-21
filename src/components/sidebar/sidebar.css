@@ -1,0 +1,424 @@
+/* ========== ОВЕРЛЕЙ ========== */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+/* ========== КНОПКА ОТКРЫТИЯ МЕНЮ ========== */
+.sidebar-toggle {
+    position: fixed;
+    left: 15px;
+    top: 15px;
+    width: 45px;
+    height: 45px;
+    background-color: #343a40;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-toggle:hover {
+    background-color: #495057;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar-toggle.hidden {
+    display: none;
+}
+
+/* ========== БОКОВАЯ ПАНЕЛЬ ========== */
+.sidebar {
+    background-color: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid #dee2e6;
+    background-color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sidebar-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sidebar-close {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #212529;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.sidebar-close:hover {
+    background-color: #e9ecef;
+}
+
+.sidebar-collapse {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #6c757d;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-collapse:hover {
+    background-color: #e9ecef;
+    color: #212529;
+}
+
+.sidebar-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar-user-email {
+    font-size: 13px;
+    color: #6c757d;
+    word-break: break-all;
+    display: block;
+}
+
+.sidebar-nav {
+    flex: 1;
+    padding: 20px 0;
+    overflow-y: auto;
+}
+
+.sidebar-section {
+    margin-bottom: 20px;
+    padding: 0 15px;
+}
+
+.section-title {
+    font-size: 12px;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    color: #212529;
+    text-decoration: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font-size: 14px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    margin-bottom: 8px;
+}
+
+.sidebar-item:hover {
+    background-color: #e9ecef;
+    color: #0056b3;
+    transform: translateX(5px);
+}
+
+.sidebar-item i {
+    width: 20px;
+    text-align: center;
+    font-size: 16px;
+}
+
+.sidebar-item span {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-item.logout {
+    color: #dc3545;
+}
+
+.sidebar-item.logout:hover {
+    background-color: #fff5f5;
+    color: #c82333;
+}
+
+.sidebar-footer {
+    padding: 15px;
+    border-top: 1px solid #dee2e6;
+    background-color: white;
+}
+
+.sidebar-footer .sidebar-item {
+    margin-bottom: 0;
+}
+
+/* ========== АДАПТИВНОСТЬ ========== */
+
+/* На десктопе (769px и больше) */
+@media (min-width: 769px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 70px;
+        width: 280px;
+        height: calc(100vh - 70px);
+        flex-shrink: 0;
+        box-shadow: none;
+        padding-top: 20px;
+        border-radius: 0;
+        overflow-y: auto;
+        transition: width 0.3s ease;
+    }
+
+    /* ========== СВЕРНУТОЕ СОСТОЯНИЕ ========== */
+    .sidebar.collapsed {
+        width: 80px;
+    }
+
+    .sidebar.collapsed .sidebar-user-email,
+    .sidebar.collapsed .section-title,
+    .sidebar.collapsed .sidebar-item span {
+        display: none;
+    }
+
+    .sidebar.collapsed .sidebar-header {
+        padding: 15px 10px;
+    }
+
+    .sidebar.collapsed .sidebar-section {
+        padding: 0 10px;
+        margin-bottom: 10px;
+    }
+
+    .sidebar.collapsed .sidebar-item {
+        padding: 12px;
+        justify-content: center;
+        margin-bottom: 0;
+        font-size: 0;
+        position: relative;
+    }
+
+    .sidebar.collapsed .sidebar-item i {
+        width: auto;
+        font-size: 18px;
+    }
+
+    .sidebar.collapsed .sidebar-item::after {
+        content: attr(title);
+        position: absolute;
+        left: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+        white-space: nowrap;
+        background-color: #212529;
+        color: white;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 8px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 1001;
+    }
+
+    .sidebar.collapsed .sidebar-item:hover::after {
+        opacity: 1;
+    }
+
+    .sidebar.collapsed .sidebar-footer {
+        width: 80px;
+    }
+
+    .sidebar.collapsed .sidebar-item.logout {
+        margin-bottom: 0;
+    }
+
+    /* ========== ОСНОВНЫЕ ДЕСКТОПНЫЕ СТИЛИ ========== */
+    .sidebar-toggle {
+        display: none;
+    }
+
+    .sidebar-overlay {
+        display: none;
+    }
+
+    .sidebar-close {
+        display: none;
+    }
+
+    .sidebar-collapse {
+        display: flex;
+    }
+
+    .sidebar-header {
+        position: static;
+        padding: 0 20px 20px 20px;
+        border: none;
+        background-color: transparent;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .sidebar-header-top {
+        flex-direction: row-reverse;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .sidebar-nav {
+        padding: 0;
+    }
+
+    .sidebar-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 280px;
+        padding: 15px;
+        border-top: 1px solid #dee2e6;
+        background-color: white;
+        z-index: 100;
+        transition: width 0.3s ease;
+    }
+}
+
+/* На мобильных (768px и меньше) */
+@media (max-width: 768px) {
+    .sidebar-toggle {
+        display: flex;
+    }
+
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 60px;
+        width: 100%;
+        max-width: 320px;
+        height: calc(100vh - 60px);
+        padding-top: 20px;
+        transition: left 0.3s ease;
+        border-right: 1px solid #dee2e6;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .sidebar-close {
+        display: flex;
+        position: absolute;
+        top: 15px;
+        right: 15px;
+    }
+
+    .sidebar-overlay {
+        display: block;
+    }
+
+    .sidebar-header {
+        position: static;
+        padding: 15px 20px 20px 20px;
+        border: none;
+        background-color: transparent;
+    }
+
+    .sidebar-nav {
+        flex: 1;
+        padding: 10px 0 80px 0;
+        overflow-y: auto;
+    }
+
+    .sidebar-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        padding: 15px;
+        border-top: 1px solid #dee2e6;
+        background-color: white;
+        z-index: 100;
+    }
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 480px) {
+    .sidebar {
+        max-width: 100%;
+    }
+
+    .section-title {
+        font-size: 11px;
+    }
+
+    .sidebar-item {
+        font-size: 13px;
+        padding: 10px 12px;
+    }
+
+    .sidebar-item i {
+        font-size: 16px;
+    }
+}
+
+/* Прокрутка */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

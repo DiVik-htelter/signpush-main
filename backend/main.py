@@ -2,14 +2,13 @@ import uvicorn
 from time import time
 from hashlib import sha256
 from typing import List, Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import Database
 from pdf_signer import add_signature_to_pdf, validate_signature_params
-
 
 
 app = FastAPI(
@@ -50,6 +49,9 @@ def chek_auth(email:str, password:str):
   try:
     global newToken 
     response = db.check_user(email, password)
+
+
+
 
     match response:
       case 0:
@@ -179,6 +181,11 @@ class Paper(BaseModel):
       description="Email владельца документа",
       json_schema_extra={"example": "admin@gmail.com"}
   )
+#  deadline_at: int = Field( # -1 Этто значит нет крайнего срока
+#      ..., 
+#      description="Крайний срок подписания документа (Unix timestamp в секундах)",
+#      json_schema_extra={"example": 1704067200}
+#  )
 
 # Модель ответа
 class PapersResponse(BaseModel):
@@ -484,6 +491,85 @@ async def download_docs(doc_id:int):
     }
     file_bytes = base64.b64decode(base64_str)
     return Response(headers=headers, content=file_bytes)
+
+
+
+
+
+#Добавить такие API call запросы, что бы сторонний сервис (например 1c) мог взаимодействовать с API таким образом:
+#-регистрировать нового пользователя 
+#-сформировать и отправить документ в БД, что бы пользователь с личного ПК мог его подписать 
+#-как только пользователь подписывает и нажимает кнопку, документ отправляется обратно на сторонний сервис
+# проверка подписи документа
+
+
+@app.post("/api/somethink/register/", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
+async def register_user_1c(user:newUser):
+   pass
+
+
+class DocumentSome(Paper):
+   endpoint: str = Field(..., description="Адрес возврата подписанного документа ", json_schema_extra={"example": "http://api/1C/somebody"} ) 
+   deadlite_at: int = Field(..., description="Крайний срок подписи документа документа (Unix timestamp в секундах)", json_schema_extra={"example": 1704067200})
+   
+
+@app.post("/api/somethink/insertDoc/", tags=["API стороннего сервиса"], summary="ОТправка документа для подписания")
+async def insert_doc_1c(document:DocumentSome):
+   pass
+
+
+
+
+
+class ResponseDoc(BaseModel):
+    document: Paper = Field(..., description="Подписанный документ в формате Paper")
+    signature: str = Field(..., description="Подпись документа")
+    public_key: str = Field(..., description="Публичный ключ")
+
+import httpx
+async def send_signed_doc(callback_url:str, data:ResponseDoc):
+   """Отправляет подписаный пользователем пдокумент обратно на 1С"""
+   pass
+
+
+
+
+@app.post("/api/somethink/webhook/", tags=["API стороннего сервиса"], summary="Возврат подписанного документа на сторонний сервис")
+async def return_doc_to_1c(
+   callback_url:str,
+   background_tasks: BackgroundTasks
+):
+    """Этот эндпоинт будет вызываться после подписания документа пользователем. Он принимает URL для обратного вызова (callback_url) и использует BackgroundTasks для отправки подписанного документа на указанный URL без блокировки основного потока."""
+    if not callback_url.startswith("http"):
+        return JSONResponse(content={"success": False, "message": "Invalid callback URL"}, status_code=400)
+
+    signed_data = ResponseDoc(
+        document=Paper(
+            filename="signed_report.pdf",
+            content_base64="JVBERi0xLjQKJ..." # Пример контента
+        ),
+        signature="MEUCIQDT...",
+        public_key="-----BEGIN PUBLIC KEY-----..."
+    )
+    background_tasks.add_task(send_signed_doc, callback_url, signed_data)
+    return JSONResponse(content={"success": True, "message": "Signed document will be sent shortly"}, status_code=200)
+
+
+class SignatureValidationRequest(BaseModel):
+   base64:str = Field(..., description="Подпись документа в формате Base64" )
+   email:str = Field(..., description="Email пользователя, который подписал документ" )
+   document_id: int = Field(..., description="ID подписанного документа" )
+   endpoint: str = Field(..., description="Адрес возврата ", json_schema_extra={"example": "http://api/1C/somebody"} )
+
+class SignatureValidationResponse(BaseModel):
+    is_valid: bool = Field(..., description="Результат проверки подписи", json_schema_extra={"example": True})
+    message: str = Field(..., description="Описание результата проверки")
+
+
+@app.get("/api/somethink/sign-verification/", tags=["API стороннего сервиса"], summary="Проверка валидности подписи УНЭП", response_model=SignatureValidationResponse)
+async def check_valid_sign(sign:SignatureValidationRequest):
+   pass
+
 
 
   # uvicorn main:app --reload

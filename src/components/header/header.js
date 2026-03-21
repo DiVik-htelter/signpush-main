@@ -1,44 +1,21 @@
-import {Navbar} from "react-bootstrap";
+import { Link, useLocation } from "react-router-dom";
+import { useContext } from "react";
+import { SidebarContext } from "../../context/SidebarContext";
 import './header.css';
-import {useCookies} from "react-cookie";
-import {useNavigate} from "react-router-dom";
-import {useContext} from "react";
-import AuthContext from "../../context/AuthProvider";
-import { Link } from "react-router-dom";
 
 function Header() {
-    const {setAuth} = useContext(AuthContext)
-    const [cookies, removeCookie] = useCookies(['user']);
-
-    const navigate = useNavigate();
-
-    const handleLogout = async (e) => {
-        e.preventDefault();
-
-        removeCookie('user');
-        setAuth(null);
-
-        navigate('/', { replace: true });
-    };
+    const { isCollapsed } = useContext(SidebarContext);
+    const location = useLocation();
+    
+    // Не показываем sidebar margin на страницах логина/регистрации
+    const isAuthPage = location.pathname === '/login' || location.pathname === '/registration';
 
     return (
-        <Navbar className="navbar navbar-light justify-content-between">
-            <img alt="logo" src="logo.png" className="navbar-brand logo"></img>
-            <div className="collapse navbar-collapse" id="navbarNavDropdown">
-                <ul className="navbar-nav">
-                    <li className="nav-item">
-                        {/* тут нужно не перенаправлять на бесполезную страничку, а сразу открывать проводник и загружать файл в бд */}
-                        <Link className="nav-link" to="/">Загрузить документ </Link> 
-                    </li>
-                    <li className="nav-item">
-                        <Link className="nav-link" to="/documents">Документы</Link>
-                    </li>
-                </ul>
-            </div>
-            <div className="form-inline login">
-                {cookies?.user} <button className="button btn btn-primary" onClick={handleLogout}>Выход</button>
-            </div>
-        </Navbar>
+        <header className={`header ${isCollapsed && !isAuthPage ? 'sidebar-collapsed' : ''}`}>
+            <Link to="/" className="header-logo">
+                <img alt="logo" src="logo.png" className="logo"></img>
+            </Link>
+        </header>
     );
 }
 

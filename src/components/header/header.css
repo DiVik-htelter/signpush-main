@@ -1,16 +1,71 @@
-.navbar {
-    background: #343a40;
+.header {
+    background-color: #343a40;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    height: 70px;
+    position: relative;
+    z-index: 998;
 }
 
-.login {
-    color: white;
-    padding-right:20px;
+.header-logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.header-logo:hover {
+    opacity: 0.8;
 }
 
 .logo {
-    padding-left: 20px;
+    height: 50px;
+    width: auto;
 }
 
-.nav-link {
-    color: white!important;
+/* На десктопе (769px и больше) - header начинается с sidebar */
+@media (min-width: 769px) {
+    .header {
+        margin-left: 280px;
+        transition: margin-left 0.3s ease;
+        padding: 10px 20px;
+        height: 70px;
+    }
+
+    /* Класс для свернутой боковой панели */
+    .header.sidebar-collapsed {
+        margin-left: 80px;
+    }
+
+    .logo {
+        height: 50px;
+    }
+}
+
+@media (max-width: 768px) {
+    .header {
+        padding: 8px 15px;
+        height: 60px;
+        margin-left: 60px;
+        position: relative;
+        z-index: 998;
+    }
+
+    .logo {
+        height: 40px;
+    }
+}
+
+@media (max-width: 576px) {
+    .header {
+        padding: 8px 15px;
+        margin-left: 55px;
+    }
+
+    .logo {
+        height: 35px;
+    }
 }

@@ -15,6 +15,7 @@ function PdfDocuments() {
     const [inputKey, setInputKey] = useState(0);
     const [file, setFileName] = useState('');
     const [selectedDocumentId, setSelectedDocumentId] = useState(null); // ID выбранного документа для подписи
+    const [deadline_at, setDeadline_at] = useState(-1)
     const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/insertDocs';
 
     const handleFileChange = async ({currentTarget: {files}}) => {
@@ -50,7 +51,8 @@ function PdfDocuments() {
                     'hash': currentFile.hash,
                     'created_at': Math.floor(Date.now() / 1000), // деление на 1000 и округление вниз необходимы для получения секунд
                     'email': Cookies.get('user'),
-                    'base64': currentFile.base64
+                    'base64': currentFile.base64,
+                    'deadline_at': deadline_at // заглушка
                  
                 })
                 ,{ 
@@ -126,6 +128,7 @@ function PdfDocuments() {
                                     <i className="bi bi-pen"></i> Подпись
                                 </Button>
                             </div>
+                            {/* Добавить поле ввода крайнего срока подписания и значение по умолчанию (нет крайнего срока) */}
                         </td>
                     </tr>
                 ))}

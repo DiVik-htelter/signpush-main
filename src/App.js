@@ -1,27 +1,48 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./pages/layout";
-import Home from "./pages/home";
+import Upload from "./pages/upload";
+import SendDocument from "./pages/send-document";
+import Profile from "./pages/profile";
+import Settings from "./pages/settings";
 import Documents from "./pages/documents";
 import Login from "./pages/login";
 import Registration from "./pages/registration";
 import RequireAuth from "./components/require-auth";
+import { SidebarProvider } from "./context/SidebarContext";
 
 function App() {
     return (
         <BrowserRouter>
-            <Routes>
-                <Route element={<RequireAuth />}> {/* RequireAuth - это защищенный маршрут Все вложенные в него Route будут проверяться на авторизацию  */}
-                    <Route path="/" element={<Layout />}>
-                        <Route index element={<Documents />} />  {/* страница с загруженными документами в БД */}
+            <SidebarProvider>
+                <Routes>
+                    <Route element={<RequireAuth />}>
+                        <Route path="/" element={<Layout />}>
+                            <Route index element={<Documents />} />
+                        </Route>
+                        <Route path="/my-documents" element={<Layout />}>
+                            <Route index element={<Documents />} />
+                        </Route>
+                        <Route path="/upload" element={<Layout />}>
+                            <Route index element={<Upload />} />
+                        </Route>
+                        <Route path="/send-document" element={<Layout />}>
+                            <Route index element={<SendDocument />} />
+                        </Route>
+                        <Route path="/profile" element={<Layout />}>
+                            <Route index element={<Profile />} />
+                        </Route>
+                        <Route path="/settings" element={<Layout />}>
+                            <Route index element={<Settings />} />
+                        </Route>
+                        <Route path="/documents" element={<Layout />}>
+                            <Route index element={<Documents />} />
+                        </Route>
                     </Route>
-                    <Route path="/documents" element={<Layout />}>
-                        <Route index element={<Home />} /> {/* index это дочерний маршрут, который отображается по умолчанию, когда родительский маршрут активен (path="/") */}
-                    </Route>
-                </Route>
 
-                <Route path="/login" element={<Login />}></Route>
-                <Route path="/registration" element={<Registration />}></Route>
-            </Routes>
+                    <Route path="/login" element={<Login />}></Route>
+                    <Route path="/registration" element={<Registration />}></Route>
+                </Routes>
+            </SidebarProvider>
         </BrowserRouter>
     );
 }
