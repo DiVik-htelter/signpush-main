@@ -399,3 +399,79 @@ class Database:
     except Exception as ex:
       print(f"[ERROR] Error in change_userName_by_id: {ex}")
       return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+import redis
+import json
+import uuid
+import datetime
+
+
+class DatabaseRedis:
+  """Класс для работы с базой данных Redis"""
+
+  def __init__(self):
+    try:
+      self.r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+      print("[INFO] Connection to Redis established")
+    except Exception as ex:
+      print("[ERROR] Error connecting to Redis:", ex)
+
+  def __del__(self):
+    """Закрывает соединение с Redis"""
+    try:
+      self.r.close()
+      print("[INFO] Redis connection closed")
+    except Exception as ex:
+      print("[ERROR] Error closing Redis connection:", ex)
+
+  from pydantic import BaseModel
+  class SessionData(BaseModel):
+      email:str
+      token: str 
+      created_at: int
+      expire_seconds: int
+
+  def create_session(self, email: str, token:str, expire_seconds: int = 3600) -> bool: # 1 час
+
+    session_data = {    
+        "email": email,
+        "token": token,
+        "created_at": datetime.datetime.now().timestamp(), 
+        "expire_seconds": expire_seconds
+    }
+    try:
+      self.r.setex(f"session:{token}", expire_seconds, json.dumps(session_data))
+      self.r.setex(f"email_to_token:{email}", expire_seconds, token)
+      print("Сессия создана успешно")
+      return True
+    except Exception as ex:
+      print("[ERROR] Error in create_session: ", ex)
+      return False
+
+  def get_token_by_email(self, email:str) -> str | None:
+    try:
+      return self.r.get(f"email_to_token:{email}")
+    except Exception as ex:
+      print("[ERROR] Error in DatabasseRedis.get_token_by_email: ", ex)
+      return None
+
+  def get_email_by_token(self, token:str) -> str |None:
+    try:
+      return 'admin@gmail.com'
+
+
+    except Exception as ex:
+      print("[ERROR] Error in DatabasseRedis.get_email_by_token: ", ex)
+      return None

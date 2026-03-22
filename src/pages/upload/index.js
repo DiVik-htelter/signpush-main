@@ -78,13 +78,7 @@ function Upload() {
                     email: Cookies.get('user'),
                     base64: base64,
                     deadline_at: -1
-                }),
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
-                }
+                })
             );
 
             if (result.data.success) {

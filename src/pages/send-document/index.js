@@ -33,16 +33,7 @@ function SendDocument() {
     const loadDocuments = async () => {
         try {
             const result = await axios.get(
-                DOCUMENTS_URL,
-                {
-                    params: {
-                        login: Cookies.get('user')
-                    },
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'token': Cookies.get('token')
-                    }
-                }
+                DOCUMENTS_URL
             );
 
             if (result.data?.papers) {

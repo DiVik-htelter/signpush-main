@@ -2,13 +2,14 @@ import uvicorn
 from time import time
 from hashlib import sha256
 from typing import List, Optional
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Header
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import Database
+from database import Database, DatabaseRedis
 from pdf_signer import add_signature_to_pdf, validate_signature_params
+import service
 
 
 app = FastAPI(
@@ -19,6 +20,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 db = Database()
+db_redis = DatabaseRedis()
 
 # Разрешенные источники
 origins = [
@@ -36,61 +38,9 @@ app.add_middleware(
 )
 newToken = None
 
-# статусы ответов на фронт:
-SUCCESS_STATUS = 0              # 0 - успешный вход
-INVALID_CREDENTIALS_STATUS = 2  # 2 - логин или пароль не верные или совпадают
-DB_CONNECTION_ERROR_STATUS = 3  # 3 - нет связи или ошибка с бд
-GENERAL_ERROR_STATUS = 4        # 4 - иная ошибка
-
-
-def chek_auth(email:str, password:str):
-  """Метод проверяет авторизацию и генерирует ответ на фронт"""
-
-  try:
-    global newToken 
-    response = db.check_user(email, password)
 
 
 
-
-    match response:
-      case 0:
-        timeToLogin = str(time())
-        sumToData = email + password
-        token = sha256((timeToLogin  + sumToData).encode()).hexdigest()
-        return {
-          "status" : SUCCESS_STATUS,
-          "token": token,
-          "message": "Успешный вход!"
-        }
-       
-      case 2:
-        return {
-          "status" : INVALID_CREDENTIALS_STATUS,
-          "token": 0,
-          "message": "Не верный логин или пароль."
-        }
-       
-      case 3:
-          return{
-            "status" : DB_CONNECTION_ERROR_STATUS,
-            "token": 0,
-            "message": "Проблемы с базой данных."
-          }
-       
-      case _:
-        return {
-        "status" : GENERAL_ERROR_STATUS,
-        "token": 0,
-        "message": response
-    }
-  except Exception as exept:
-    print("[ERROR] Exception in simple chek_auth: ", exept)
-    return {
-        "status" : GENERAL_ERROR_STATUS,
-        "token": 0,
-        "message": exept
-    }
 
 
 
@@ -116,7 +66,7 @@ class AuthResponse(BaseModel):
   status: int = Field(
       ..., 
       description="Код статуса: 0 - успешно, 2 - неверные данные, 4 - ошибка",
-      json_schema_extra={"example": SUCCESS_STATUS}
+      json_schema_extra={"example": 0}
   )
   token: Optional[int] = Field(
       None, 
@@ -131,7 +81,7 @@ class AuthResponse(BaseModel):
 
 
 @app.post("/api/auth", response_model=AuthResponse, summary="Аутентификация пользователя", tags=["Аутентификация"])
-async def chek_login(old_user: oldUser):
+async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)  ):
   """
   Проверка учетных данных и выдача токена аутентификации
   
@@ -140,15 +90,29 @@ async def chek_login(old_user: oldUser):
   - 2: Неверный логин или пароль
   - 3: Ошибка подключения к базе данных
   """
+  
   try:
-    content = chek_auth(old_user.mail, old_user.password)
-    headers = {
-      "Access-Control-Allow-Origin": "*"
-    } 
-  except Exception as exept:
-    print("Ошибка непосредственно в роуте: ", exept) 
+    content = None
+    token_redis = db_redis.get_token_by_email(old_user.mail)
+    print("Токен из редиса: ", token_redis)
+    print('user token', token)
+    if token == token_redis:
+        content = {
+            'status': service.SUCCESS_STATUS,
+            'token': token,
+            'message': 'Добро пожаловать!'
+        }
+    else:
+        user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
+        content = user.chek_auth(old_user.password)
+       
 
-  return JSONResponse(content=content, headers=headers)
+    print("Ответ из chek_auth: ", content)
+  except Exception as exept:
+    print("Ошибка непосредственно в роуте chek_login(): ", exept) 
+    print(content)
+
+  return JSONResponse(content=content)
 
 class Paper(BaseModel):
   id: int = Field(
@@ -199,21 +163,27 @@ class PapersResponse(BaseModel):
       description="Список документов пользователя"
   )
 
-@app.post("/api/insertDocs", tags=["Документы"])
-async def insert_docs(paper:Paper):
-  
-  try:
-    flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
-    headers = {
-      "Access-Control-Allow-Origin": "*"
-    } 
-    content = { 
-      "success": flag
-    }
-  except Exception as exept:
-    print("Ошибка непосредственно в роуте добавления документа: ", exept) 
-
-  return JSONResponse(content=content, headers=headers)
+@app.post("/api/docs/download", tags=["Документы"])
+async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):    
+    try:
+        if token == db_redis.get_token_by_email(paper.email):
+            print("Токены совпали, можно вставлять документ в БД")
+            flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
+        
+            content = { 
+            "success": flag
+            }
+        else: 
+           content = {
+            "success": False,
+            "message": "Invalid token",
+            'navigate': '/login'
+           }
+       
+    except Exception as exept:
+        print("Ошибка непосредственно в роуте добавления документа: ", exept) 
+    
+    return JSONResponse(content=content)
 
 @app.get(
     "/api/docs", 
@@ -222,26 +192,40 @@ async def insert_docs(paper:Paper):
     tags=["Документы"],
     description="Получить список всех документов пользователя по его email адресу"
 )
-async def get_docs(login):
+async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
   """Получение списка документов по логину""" 
-  result = db.get_all_list_docs(str(login))
+
+  temp_token = db_redis.get_token_by_email(email)
+  print("Токен из редиса в get_docs: ", temp_token)
+  if token != temp_token:
+      return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+  # если токен не валиден то логин не найдется, я не знаю нужна ли тут еще какая то проверка
+  result = db.get_all_list_docs(str(email))
   total = len(result)
   message =f"There are {total} paperes"
 
   papers_list = [Paper(**doc) for doc in result]
-  
+
   return PapersResponse(message=message, papers=papers_list)
 
+
 @app.delete("/api/docs", tags=["Документы"])
-async def doc_delete(doc_id:int):
+async def doc_delete(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
   """Удаление документа по ID"""
   flag = False
   try:
+    temp_token = db_redis.get_token_by_email(email)
+    print("Токен из редиса в get_docs: ", temp_token)
+    if token != temp_token:
+      return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+
     flag = db.delet_document_by_id(doc_id) # id документа, который автоматически выдается в базе данных 
   except Exception as ex:
     print('Ошибка при удалениии документа из БД: ', ex)
   
-  content = {'success': flag}
+  content = {'status': 0,
+             'message': 'Документ успешно удалён!',
+             'success': flag }
   return JSONResponse(content=content)
 
 
@@ -329,7 +313,7 @@ class SignDocumentResponse(BaseModel):
     tags=["Подписание документов"],
     description="Электронная подпись PDF документа с визуальным отображением подписи на странице. Процесс: 1. Получение документа из БД 2. Встраивание подписи в PDF 3. Вычисление нового хеша 4. Сохранение подписанного документа"
 )
-async def sign_document(request: SignatureRequest):
+async def sign_document(request: SignatureRequest, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
     """
     Подписывает PDF документ визуальной подписью.
     
@@ -343,6 +327,13 @@ async def sign_document(request: SignatureRequest):
         JSON с результатом операции и ID нового документа
     """
     try:
+
+        temp_token = db_redis.get_token_by_email(email)
+        print("Токен из редиса в get_docs: ", temp_token)
+        if token != temp_token:
+            return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+
+
         print(f"\n[API] Received signature request for document ID: {request.document_id}")
         
         # Валидация параметров подписи
@@ -464,10 +455,10 @@ async def register_user(user: newUser):
     }
     flag = db.insert_user(user.email, user.password, name)
     if flag:
-        content = {'status': SUCCESS_STATUS,
+        content = {'status': service.SUCCESS_STATUS,
                'message': 'Успешная регистрация!'}
     else:
-        content = {'status': INVALID_CREDENTIALS_STATUS}
+        content = {'status': service.INVALID_CREDENTIALS_STATUS}
     
     return JSONResponse(content=content)    
   except Exception as ex:
@@ -476,7 +467,14 @@ async def register_user(user: newUser):
 import base64
 from fastapi.responses import Response
 @app.get("/api/docs/download/", tags=["Документы"], summary="Скачивание документа по id")
-async def download_docs(doc_id:int):   
+async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+
+    temp_token = db_redis.get_token_by_email(email)
+    print("Токен из редиса в get_docs: ", temp_token)
+    if token != temp_token:
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+
+
     doc = db.get_document_by_id(doc_id)
     doc_title = doc['title']
     doc = doc['base64']

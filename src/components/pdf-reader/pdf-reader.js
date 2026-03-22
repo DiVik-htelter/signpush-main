@@ -279,7 +279,8 @@ export default function PdfReader({file, documentId}) {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'token':Cookies.get('token')
           }
         }
       );

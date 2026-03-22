@@ -1,24 +1,51 @@
-from database import Database
+from pydantic import BaseModel,  Field
+from database import Database, DatabaseRedis
 from datetime import datetime
+import uuid
+import redis
+import json 
+# статусы ответов на фронт:
+SUCCESS_STATUS = 0              # 0 - успешный вход
+INVALID_CREDENTIALS_STATUS = 2  # 2 - логин или пароль не верные или совпадают
+DB_CONNECTION_ERROR_STATUS = 3  # 3 - нет связи или ошибка с бд
+GENERAL_ERROR_STATUS = 4        # 4 - иная ошибка
 
 class User:
 
-  def __init__(self, email:str):
+  def __init__(self, email:str, db: Database = None, db_redis: DatabaseRedis = None):
     self.__email = email
-    self.__db = Database()
-    __user = self.__db.get_user_by_email(email)
-    self.__id = __user['id']
-    self.__first_name = __user['first_name']
-    self.__last_name = __user['last_name']
-    self.__is_email_verified = __user['is_email_verified']
-    self.__created_at = __user['created_at']
+    self.__db = db
+    self.__db_redis = db_redis
+    #print("Инициализация User: ", self.__email)
+    
+    #if self.__db is not None:
+    #  __user = self.__db.get_user_by_email(self.__email)
+    #  self.__id = __user['id']
+    #  self.__first_name = __user['first_name']
+    #  self.__last_name = __user['last_name']
+    #  self.__is_email_verified = __user['is_email_verified']
+    #  self.__created_at = __user['created_at']
+  
+    self.__token = self.__get_token_to_redis()
+    self.__session_active = bool(self.__token)
 
+
+  async def __get_token_to_redis(self) -> str | None: 
+    try: 
+      return self.__db_redis.get_token_by_email(self.__email)
+    except Exception as ex:
+      print("[ERROR] Exception in __get_token_to_redis: ", ex)
+      return None
+    
   def get_name(self):
     """ Returns: first_name, last_name """
     return self.__first_name, self.__last_name
   
   def get_email(self) -> str:
     return self.__email
+  
+  def get_session_status(self) -> bool:
+    return self.__session_active
   
   def get_is_email_verified(self)-> bool:
     return self.__is_email_verified
@@ -35,10 +62,77 @@ class User:
       'created_at': datetime.fromtimestamp(self.__created_at)
     }
     return content
+  
 
   def set_name(self, first_name:str, last_name:str):
     # нужна валидация на спец символы и прочее для предотвращения траблов с бд
+    from pydantic import field_validator
+
+    class UserName(BaseModel):
+      name: str = Field(..., min_length=2)
+
+      @field_validator('name')
+      @classmethod
+      def abc(cls, v:str) ->str:
+        if not all(char.isalpha() or char.isspace() for char in v):
+          raise ValueError('Имя должно содержать только буквы и пробелы')
+        return v.title()
+
     self.__first_name = first_name
     self.__last_name = last_name
     self.__db.change_userName_by_id(self.__id,self.__first_name, self.__last_name)
+
+
+  def chek_auth(self, password:str):
+    """Метод проверяет авторизацию и генерирует ответ на фронт"""
+    try:
+      response = self.__db.check_user(self.__email, password)
+
+      match response:
+        case 0:
+          self.__token = str(uuid.uuid4())
+          print("Генерируем токен: ", self.__token)
+          if self.__db_redis.create_session(self.__email, self.__token):
+            self.__session_active = True
+            return {
+              "status" : SUCCESS_STATUS,
+              "token": self.__token,
+              "message": "Успешный вход!"
+            }
+          else:
+            return {
+              "status" : DB_CONNECTION_ERROR_STATUS,
+              "token": -1,
+              "message": "Проблемы с созданием сессии."
+            }
+        
+        case 2:
+          return {
+            "status" : INVALID_CREDENTIALS_STATUS,
+            "token": -1,
+            "message": "Не верный логин или пароль."
+          }
+        
+        case 3:
+            return{
+              "status" : DB_CONNECTION_ERROR_STATUS,
+              "token": -1,
+              "message": "Проблемы с базой данных."
+            }
+        
+        case _:
+          return {
+          "status" : GENERAL_ERROR_STATUS,
+          "token": -1,
+          "message": response
+      }
+    except Exception as exept:
+      print("[ERROR] Exception in chek_auth: ", exept)
+      return {
+          "status" : GENERAL_ERROR_STATUS,
+          "token": -1,
+          "message": exept
+      }
+
+
     

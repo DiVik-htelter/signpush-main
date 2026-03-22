@@ -4,7 +4,8 @@ import './main.css';
 import { useContext, useRef, useState } from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import AuthContext from "../../context/AuthProvider";
-import { useCookies } from 'react-cookie'
+import { useCookies} from 'react-cookie'
+import Cookies from 'js-cookie';
 import axios from '../../api/axios';
 import detectOS from '../../components/detect-os/detect-os';
 
@@ -12,7 +13,6 @@ function Login() {
     const {setAuth} = useContext(AuthContext)
     const userRef = useRef();
     const passwordRef = useRef();
-
     const [user, setUser] = useState('');
     const [password, setPassword] = useState('');
     const [errMsg, setErrorMessage] = useState('');
@@ -38,19 +38,7 @@ function Login() {
                 JSON.stringify({
                     'mail':user,
                     'password':password
-                    //'device': {
-                    //    'model': 'Virtual',
-                    //    'os': os
-                    //}
                 })
-                ,{ 
-                    headers : {
-                        // говорит серверу что отправляет запрос в json формате и ожидает ответ так же в json
-                        'Content-Type': 'application/json',
-                        "Accept": "application/json"
-                        //'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09'
-                    },
-                }
             );
 
         } catch (err) {
@@ -81,7 +69,7 @@ function Login() {
             let expires = new Date()
             expires.setTime(expires.getTime() + 1000000);
 
-            setCookie('user', user, { path: '/',  expires}); // по видимому в куки записывается сгенерированные токен и в дальнейшем проверяется 
+            setCookie('user', user, { path: '/',  expires}); 
             setCookie('token', response?.data?.token || '213', { path: '/',  expires});
 
             setUser(''); 

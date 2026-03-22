@@ -43,18 +43,7 @@ function Index() {
 
             try {
                 const result = await axios.get(
-                    DOCUMENTS_URL,
-                    { 
-                        params:{
-                            login: Cookies.get('user')
-                        }
-                        ,
-                        headers : {
-                            'Content-Type': 'application/json',
-                            'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09',
-                            'token': Cookies.get('token')
-                        },
-                    }
+                    DOCUMENTS_URL
                 );
 
                 let countOfDocuments = result.data?.message?.substring(
@@ -108,15 +97,8 @@ function Index() {
                     DOCUMENTS_URL,
                     { 
                         params:{
-                            //login: Cookies.get('user'),
                             doc_id: fileList[i].id
                         }
-                        ,
-                        headers : {
-                            'Content-Type': 'application/json',
-                            'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09',
-                            'token': Cookies.get('token')
-                        },
                     }
                 );
                 window.location.reload()
@@ -131,10 +113,6 @@ function Index() {
                 `http://127.0.0.1:8000/api/docs/download/`,
                 { 
                     params: { doc_id: doc.id },
-                    headers : {
-                        'apiKey': '2e4ee3528082873f6407f3a42a85854156bef0b0ccb8336fd8843a3f13e2ff09',
-                        'token': Cookies.get('token')
-                    },
                     responseType: 'blob', // КРИТИЧНО: указываем, что ждем бинарные данные
                 }
             );

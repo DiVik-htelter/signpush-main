@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import Layout from "./pages/layout";
 import Upload from "./pages/upload";
 import SendDocument from "./pages/send-document";
@@ -9,12 +10,30 @@ import Login from "./pages/login";
 import Registration from "./pages/registration";
 import RequireAuth from "./components/require-auth";
 import { SidebarProvider } from "./context/SidebarContext";
+import { setNavigate, setCurrentPath } from "./api/axios";
+
+// Компонент для инициализации навигации в axios интерцепторе
+function NavigationInitializer({ children }) {
+    const navigate = useNavigate();
+    const location = useLocation();
+    
+    useEffect(() => {
+        setNavigate(navigate);
+    }, [navigate]);
+    
+    useEffect(() => {
+        setCurrentPath(location.pathname);
+    }, [location.pathname]);
+    
+    return children;
+}
 
 function App() {
     return (
         <BrowserRouter>
-            <SidebarProvider>
-                <Routes>
+            <NavigationInitializer>
+                <SidebarProvider>
+                    <Routes>
                     <Route element={<RequireAuth />}>
                         <Route path="/" element={<Layout />}>
                             <Route index element={<Documents />} />
@@ -42,7 +61,8 @@ function App() {
                     <Route path="/login" element={<Login />}></Route>
                     <Route path="/registration" element={<Registration />}></Route>
                 </Routes>
-            </SidebarProvider>
+                </SidebarProvider>
+            </NavigationInitializer>
         </BrowserRouter>
     );
 }
