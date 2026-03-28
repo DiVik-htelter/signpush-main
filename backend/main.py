@@ -39,11 +39,6 @@ app.add_middleware(
 newToken = None
 
 
-
-
-
-
-
 class oldUser(BaseModel):
   """
   Образ пользователя с такими данными как: \n
@@ -114,6 +109,7 @@ async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)  ):
 
   return JSONResponse(content=content)
 
+
 class Paper(BaseModel):
   id: int = Field(
       ..., 
@@ -145,11 +141,33 @@ class Paper(BaseModel):
       description="Email владельца документа",
       json_schema_extra={"example": "admin@gmail.com"}
   )
-#  deadline_at: int = Field( # -1 Этто значит нет крайнего срока
-#      ..., 
-#      description="Крайний срок подписания документа (Unix timestamp в секундах)",
-#      json_schema_extra={"example": 1704067200}
-#  )
+
+class PaperList(BaseModel):
+    id: int = Field(
+        ..., 
+        description="Уникальный идентификатор документа",
+        json_schema_extra={"example": 1}
+    )
+    title: str = Field(
+        ..., 
+        description="Название документа",
+        json_schema_extra={"example": "Контракт.pdf"}
+    )
+    hash: str = Field(
+        ..., 
+        description="SHA256 хеш документа для проверки целостности",
+        json_schema_extra={"example": "a1b2c3d4e5f6..."}
+    )
+    created_at: int = Field(
+        ..., 
+        description="Время создания документа (Unix timestamp в секундах)",
+        json_schema_extra={"example": 1704067200}
+    )
+    email: str = Field(
+        ..., 
+        description="Email владельца документа",
+        json_schema_extra={"example": "admin@gmail.com"}
+    )
 
 # Модель ответа
 class PapersResponse(BaseModel):
@@ -158,12 +176,12 @@ class PapersResponse(BaseModel):
       description="Сообщение о количестве полученных документов",
       json_schema_extra={"example": "There are 5 paperes"}
   )
-  papers: List[Paper] = Field(
+  papers: List[PaperList] = Field(
       ..., 
       description="Список документов пользователя"
   )
 
-@app.post("/api/docs/download", tags=["Документы"])
+@app.post("/api/docs/download", tags=["Документы"], summary="Загрузка документа в бд")
 async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):    
     try:
         if token == db_redis.get_token_by_email(paper.email):
@@ -200,16 +218,49 @@ async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = H
   if token != temp_token:
       return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
   # если токен не валиден то логин не найдется, я не знаю нужна ли тут еще какая то проверка
+  
+  
   result = db.get_all_list_docs(str(email))
   total = len(result)
   message =f"There are {total} paperes"
 
-  papers_list = [Paper(**doc) for doc in result]
+  papers_list = [PaperList(**doc) for doc in result]
 
   return PapersResponse(message=message, papers=papers_list)
 
+@app.patch( 
+      "/api/docs",
+        response_model=Paper,
+        summary="Получение документа по ID",
+        tags=["Документы"],
+        description="Получить документ по его уникальному идентификатору (ID)"
+)
+async def get_docs_by_id(doc_id: int):#, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+  """Получение документа по ID""" 
 
-@app.delete("/api/docs", tags=["Документы"])
+#  temp_token = db_redis.get_token_by_email(email)
+#  print("Токен из редиса в get_docs_by_id: ", temp_token)
+#  if token != temp_token:
+#      return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+#  # если токен не валиден то логин не найдется, я не знаю нужна ли тут еще какая то проверка
+
+  
+  result = db.get_document_by_id(doc_id)
+  if result:
+    #  print(**result)
+    #  print(Paper(**result))
+      return Paper(**result)
+  else:
+      return JSONResponse(content={"message": "Документ не найден"}, status_code=404)
+
+
+
+@app.delete(
+      "/api/docs",
+        tags=["Документы"],
+        summary="Удаление документа по ID",
+        description="Удалить документ по его уникальному идентификатору (ID)"
+)
 async def doc_delete(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
   """Удаление документа по ID"""
   flag = False
@@ -307,7 +358,7 @@ class SignDocumentResponse(BaseModel):
 
 
 @app.post(
-    "/api/sign-document",
+    "/api/document/sign/",
     response_model=SignDocumentResponse,
     summary="Подписание PDF документа визуальной подписью",
     tags=["Подписание документов"],
@@ -466,11 +517,14 @@ async def register_user(user: newUser):
 
 import base64
 from fastapi.responses import Response
+
+
+
 @app.get("/api/docs/download/", tags=["Документы"], summary="Скачивание документа по id")
 async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
 
     temp_token = db_redis.get_token_by_email(email)
-    print("Токен из редиса в get_docs: ", temp_token)
+    print("Токен из редиса в download_docs: ", temp_token)
     if token != temp_token:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
 
@@ -489,6 +543,14 @@ async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: 
     }
     file_bytes = base64.b64decode(base64_str)
     return Response(headers=headers, content=file_bytes)
+
+
+@app.post("/api/document/sign/unep/", tags=["Подписание документов"], summary="Подписание документа в формате УНЭП")
+async def sign_document_unep(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+    temp_token = db_redis.get_token_by_email(email)
+    print("Токен из редиса в sign_document_unep: ", temp_token)
+    if token != temp_token:
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
 
 
 
@@ -511,17 +573,17 @@ class DocumentSome(Paper):
    deadlite_at: int = Field(..., description="Крайний срок подписи документа документа (Unix timestamp в секундах)", json_schema_extra={"example": 1704067200})
    
 
-@app.post("/api/somethink/insertDoc/", tags=["API стороннего сервиса"], summary="ОТправка документа для подписания")
+@app.post("/api/somethink/document/insert", tags=["API стороннего сервиса"], summary="ОТправка документа для подписания")
 async def insert_doc_1c(document:DocumentSome):
    pass
 
 
 
 
-
 class ResponseDoc(BaseModel):
     document: Paper = Field(..., description="Подписанный документ в формате Paper")
-    signature: str = Field(..., description="Подпись документа")
+    signatureIMG: SignatureRequest = Field(..., description="Подпись документа") # Графическаая
+    signatureUNEP: str = Field(..., description="Подпись документа в формате УНЭП") 
     public_key: str = Field(..., description="Публичный ключ")
 
 import httpx
@@ -531,7 +593,7 @@ async def send_signed_doc(callback_url:str, data:ResponseDoc):
 
 
 
-
+# Эндпоинт чисто запускает задачу на отправку документа на 1С
 @app.post("/api/somethink/webhook/", tags=["API стороннего сервиса"], summary="Возврат подписанного документа на сторонний сервис")
 async def return_doc_to_1c(
    callback_url:str,
@@ -541,12 +603,13 @@ async def return_doc_to_1c(
     if not callback_url.startswith("http"):
         return JSONResponse(content={"success": False, "message": "Invalid callback URL"}, status_code=400)
 
-    signed_data = ResponseDoc(
+    signed_data = ResponseDoc( # тут должно быть получение данных подписи и документа из бд
         document=Paper(
             filename="signed_report.pdf",
             content_base64="JVBERi0xLjQKJ..." # Пример контента
         ),
-        signature="MEUCIQDT...",
+        signatureIMG=SignatureRequest(),
+        signatureUNEP="MEUCIQDT...",
         public_key="-----BEGIN PUBLIC KEY-----..."
     )
     background_tasks.add_task(send_signed_doc, callback_url, signed_data)

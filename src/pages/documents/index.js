@@ -84,15 +84,22 @@ function Index() {
 
     const showPdfClick = async (i) => {
 
-        // нужно сделать так, что бы основной костяк base64 документа подгружался только при нажатии этой кнопки
-        // что бы не загружать все документы сразу и экономить место и время пользователя
+        if (fileList[i].base64 == undefined) {
+            let result = await axios.patch(
+                DOCUMENTS_URL, null,
+                {
+                    params:{
+                        doc_id: fileList[i].id
+                    }
+                }
+            );
+            fileList[i].base64 = result.data?.base64;
+        }
         setFileName(fileList[i].base64);
         setFileId(fileList[i].id);
     }
 
     const deleteDoc = async (i) => {
-         
-
         const result = await axios.delete(
                     DOCUMENTS_URL,
                     { 

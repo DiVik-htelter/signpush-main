@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     is_email_verified BOOLEAN DEFAULT false,
     
     -- Метаданные сертификата (Unix Timestamp)
-    certificate_serial_number VARCHAR(255),
-    certificate_expires_at BIGINT,
+    private_key BIGINT, -- 64-битное поле
+    public_key BIGINT
     
     created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     updated_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS documents (
 
 CREATE INDEX IF NOT EXISTS idx_documents_owner_id ON documents(owner_id);
 
+
+ 
+
+
+
 -- 3. МАРШРУТЫ ПОДПИСЕЙ
 CREATE TABLE IF NOT EXISTS signature_routes (
     id SERIAL PRIMARY KEY,
@@ -60,6 +65,7 @@ CREATE TABLE IF NOT EXISTS signature_routes (
     CONSTRAINT unique_route_per_doc_signer UNIQUE(document_id, required_signer_id, order_index)
 );
 
+-- модернизировать таблицу под графическую и унэп подписи
 -- 4. ТАБЛИЦА ПОДПИСЕЙ
 CREATE TABLE IF NOT EXISTS document_signatures (
     id SERIAL PRIMARY KEY,
@@ -77,12 +83,13 @@ CREATE TABLE IF NOT EXISTS document_signatures (
     
     signature_type VARCHAR(50) DEFAULT 'visual', 
     digital_signature_hash TEXT,
-    certificate_serial_number VARCHAR(255),
+    unep_cipher VARCHAR(255),
+    public_key TEXT,
 
     signed_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     is_valid BOOLEAN DEFAULT true,
     
-    CONSTRAINT valid_signature_type CHECK (signature_type IN ('visual', 'digital_ukey', 'digital_uesp'))
+    CONSTRAINT valid_signature_type CHECK (signature_type IN ('visual', 'digital_unep', 'digital_ukey'))
 );
 
 -- 5. ПЕРЕСЫЛКА ДОКУМЕНТОВ

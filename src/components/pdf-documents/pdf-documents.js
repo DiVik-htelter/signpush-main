@@ -8,15 +8,13 @@ import Cookies from 'js-cookie';
 import PdfReader from "../pdf-reader/pdf-reader";
 import "./pdf-documents.css";
 
-// Компонент, который возвращает заголовок таблица и строчки в перечне загруженных документов
-// главная страница с добавлением документов
 function PdfDocuments() {
     const [fileList, setFileList] = useState([]);
     const [inputKey, setInputKey] = useState(0);
     const [file, setFileName] = useState('');
     const [selectedDocumentId, setSelectedDocumentId] = useState(null); // ID выбранного документа для подписи
     const [deadline_at, setDeadline_at] = useState(-1)
-    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/insertDocs';
+    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs/download';
 
     const handleFileChange = async ({currentTarget: {files}}) => {
         if (files && files.length) {

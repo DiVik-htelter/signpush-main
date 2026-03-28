@@ -114,7 +114,9 @@ class Database:
       return INVALID_CREDENTIALS_STATUS
     except Exception as ex:
       print("[ERROR] Error in the check_user:", ex)
-      return ex
+      with open("log.txt", "w", encoding="utf-8") as file:
+        file.write("[ERROR] Error in the check_user: " + str(ex) + "\n")
+      return DB_CONNECTION_ERROR_STATUS
     
 
   def get_all_list_docs(self, email:str) -> list:
@@ -133,20 +135,22 @@ class Database:
                 d.id,
                 d.title,
                 d.hash,
-                d.base64,
+                
                 d.created_at,
                 u.email
             FROM documents d
             JOIN users u ON d.owner_id = u.id
             WHERE u.email = %s
             ORDER BY d.created_at DESC;
-        """, (email,)) 
+        """, (email,)) # d.base64,
         results = cursor.fetchall()
         return results
       
     except Exception as ex:
       print("[ERROR] Error in the check_docs:", ex)
-    return []
+      with open("log.txt", "a", encoding="utf-8") as file:
+        file.write("[ERROR] Error in the check_docs: " + str(ex) + "\n")
+      return []
     
 
   def insert_doc(self, title:str, hash:str, created_at:int, base64:str, email:str):
@@ -233,7 +237,7 @@ class Database:
         
         if result:
           print(f"[INFO] Document id: {doc_id} retrieved successfully")
-          return dict(result)
+          return result
         else:
           print(f"[ERROR] Document id: {doc_id} not found")
           return None
@@ -259,8 +263,8 @@ class Database:
           INSERT INTO signature_routes (document_id, required_signer_id, order_index, signature_note, deadline_at)
           VALUES (%s, (SELECT id FROM users WHERE email = %s), %s, %s, %s)
           RETURNING id;
-        """, (document_id, email, '1', signature_note, deadline))
-        result = cursor.fetchone[0]
+        """, (document_id, email, 1, signature_note, deadline))
+        result = cursor.fetchone()[0]
         self.connection.commit()
       return result
     except Exception as ex:
@@ -416,14 +420,14 @@ import redis
 import json
 import uuid
 import datetime
-
+from config_db import host_r, port_r
 
 class DatabaseRedis:
   """Класс для работы с базой данных Redis"""
 
   def __init__(self):
     try:
-      self.r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+      self.r = redis.Redis(host=host_r, port=port_r, decode_responses=True)
       print("[INFO] Connection to Redis established")
     except Exception as ex:
       print("[ERROR] Error connecting to Redis:", ex)

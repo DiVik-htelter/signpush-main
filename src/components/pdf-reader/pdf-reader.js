@@ -232,6 +232,11 @@ export default function PdfReader({file, documentId}) {
      setHeight(null);
   }
 
+  const handleSignedDocumentUNEP = async () => {
+    // Заглушка для функции подписания УНЭП
+    alert('Функция подписания УНЭП пока не реализована. Ожидайте обновлений!');
+  }
+
   /**
    * Сохраняет подписанный документ на сервер
    * Отправляет PDF с встроенной подписью на backend для обработки
@@ -265,7 +270,7 @@ export default function PdfReader({file, documentId}) {
 
       // Формируем запрос на подписание документа
       const response = await axios.post(
-        'http://127.0.0.1:8000/api/sign-document',
+        'http://127.0.0.1:8000/api/document/sign', 
         {
           document_id: documentId,           // ID исходного документа
           signature_base64: signatureImageData, // Изображение подписи
@@ -373,7 +378,15 @@ export default function PdfReader({file, documentId}) {
               </button>
             </div>
             <div className='col col-auto'>
+              <button
+              type='button'
+              className='btn btn-success'
+              onClick={handleSignedDocumentUNEP}
+              > Подписать УНЭП
+              </button>
+            </div>
 
+            <div className='col col-auto'>
               <button
               type='button'
               className='btn btn-success'

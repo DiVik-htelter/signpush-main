@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
@@ -14,8 +14,9 @@ function Upload() {
     const [isLoading, setIsLoading] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [alertType, setAlertType] = useState('');
+    const fileInputRef = useRef(null);
     const navigate = useNavigate();
-    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/insertDocs';
+    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs/download';
 
     const handleFileChange = async (event) => {
         const files = event.currentTarget.files;
@@ -127,13 +128,18 @@ function Upload() {
                     accept="application/pdf"
                     onChange={handleFileChange}
                     disabled={isLoading}
+                    ref={fileInputRef}
                 />
                 
-                <label htmlFor="fileInput" className="file-label">
-                    <Button variant="primary" disabled={isLoading}>
+                <div className="file-label">
+                    <Button
+                        variant="primary"
+                        disabled={isLoading}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
                         Выбрать файл
                     </Button>
-                </label>
+                </div>
 
                 {selectedFile && (
                     <div className="file-info">
