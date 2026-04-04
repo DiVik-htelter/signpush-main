@@ -7,6 +7,7 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import axios from '../../api/axios';
 import Cookies from 'js-cookie';
+import { DateTime } from "luxon";
 import './profile.css';
 
 function Profile() {
@@ -43,19 +44,17 @@ function Profile() {
 
     const loadUserInfo = async () => {
         try {
-            // Здесь будет API запрос для получения информации о пользователе
-            // const result = await axios.get('/api/user/info', {
-            //     params: { email: Cookies.get('user') }
-            // });
-            // setUserInfo(result.data);
+            const result = await axios.get('/user/info')
 
-            // Временные данные для демонстрации
+            console.log("Полученная информация о пользователе: ", result.data);
             setUserInfo({
-                email: Cookies.get('user'),
-                firstName: 'Иван',
-                lastName: 'Петров',
-                createdAt: new Date().toLocaleDateString('ru-RU')
+                ...userInfo,
+                firstName: result.data.first_name,
+                lastName: result.data.last_name,
+                createdAt: DateTime.fromSeconds(result.data.created_at).toFormat('ff'),
+                email: result.data.email
             });
+
 
             setFormData({
                 firstName: 'Иван',
@@ -141,14 +140,16 @@ function Profile() {
 
         setIsLoading(true);
         try {
-            // Здесь будет API запрос для обновления информации
-            // const result = await axios.post('/api/user/update', {
-            //     email: Cookies.get('user'),
-            //     firstName: formData.firstName,
-            //     lastName: formData.lastName,
-            //     currentPassword: formData.currentPassword,
-            //     newPassword: formData.newPassword
-            // });
+            // API запрос для обновления информации
+             const result = await axios.post('/api/user/info/update', {
+                 first_name: formData.firstName,
+                 last_name: formData.lastName,
+                 new_password: formData.newPassword
+             });
+
+
+            //const result = await axios.get('/api/user/info')
+
 
             setUserInfo({
                 ...userInfo,

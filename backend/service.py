@@ -37,7 +37,10 @@ class User:
       return None
     
   def get_name(self):
-    """ Returns: first_name, last_name """
+    """ 
+    Returns:
+        first_name, last_name
+    """
     return self.__first_name, self.__last_name
   
   def get_email(self) -> str:
@@ -53,15 +56,25 @@ class User:
     return datetime.fromtimestamp(self.__created_at)
   
   def get_all_info(self) -> dict:
+    """
+    Возвращает всю информацию о пользователе в виде словаря\n
+    Returns: first_name
+      last_name
+      email
+      is_email_verified
+      created_at
+    """
     content = {
       'first_name': self.__first_name,
       'last_name': self.__last_name,
       'email': self.__email,
       'is_email_verified': self.__is_email_verified,
-      'created_at': datetime.fromtimestamp(self.__created_at)
+      'created_at': self.__created_at
     }
     return content
   
+  
+
 
   def set_name(self, first_name:str, last_name:str):
     # нужна валидация на спец символы и прочее для предотвращения траблов с бд

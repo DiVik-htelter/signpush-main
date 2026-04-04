@@ -39,6 +39,17 @@ app.add_middleware(
 newToken = None
 
 
+def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
+    """Сопоставляет токен из запроса с токеном, хранящимся в Redis для данного email. Возвращает True, если токены совпадают, иначе False."""
+    try:
+        token_redis = db_redis.get_token_by_email(email)
+        return token == token_redis
+    except Exception as ex:
+        print("[ERROR] Exception in check_token_redis: ", ex)
+        return False
+
+
+
 class oldUser(BaseModel):
   """
   Образ пользователя с такими данными как: \n
@@ -235,23 +246,17 @@ async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = H
         tags=["Документы"],
         description="Получить документ по его уникальному идентификатору (ID)"
 )
-async def get_docs_by_id(doc_id: int):#, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+async def get_docs_by_id(doc_id: int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
   """Получение документа по ID""" 
 
-#  temp_token = db_redis.get_token_by_email(email)
-#  print("Токен из редиса в get_docs_by_id: ", temp_token)
-#  if token != temp_token:
-#      return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
-#  # если токен не валиден то логин не найдется, я не знаю нужна ли тут еще какая то проверка
+  if not check_token_redis(db_redis, token, email):
+    return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
-  
   result = db.get_document_by_id(doc_id)
   if result:
-    #  print(**result)
-    #  print(Paper(**result))
-      return Paper(**result)
+    return Paper(**result)
   else:
-      return JSONResponse(content={"message": "Документ не найден"}, status_code=404)
+    return JSONResponse(content={"message": "Документ не найден"}, status_code=404)
 
 
 
@@ -265,10 +270,8 @@ async def doc_delete(doc_id:int, token: Optional[str] = Header(None), email: Opt
   """Удаление документа по ID"""
   flag = False
   try:
-    temp_token = db_redis.get_token_by_email(email)
-    print("Токен из редиса в get_docs: ", temp_token)
-    if token != temp_token:
-      return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     flag = db.delet_document_by_id(doc_id) # id документа, который автоматически выдается в базе данных 
   except Exception as ex:
@@ -379,10 +382,8 @@ async def sign_document(request: SignatureRequest, token: Optional[str] = Header
     """
     try:
 
-        temp_token = db_redis.get_token_by_email(email)
-        print("Токен из редиса в get_docs: ", temp_token)
-        if token != temp_token:
-            return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+        if not check_token_redis(db_redis, token, email):
+            return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
 
         print(f"\n[API] Received signature request for document ID: {request.document_id}")
@@ -522,12 +523,8 @@ from fastapi.responses import Response
 
 @app.get("/api/docs/download/", tags=["Документы"], summary="Скачивание документа по id")
 async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-
-    temp_token = db_redis.get_token_by_email(email)
-    print("Токен из редиса в download_docs: ", temp_token)
-    if token != temp_token:
-        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
-
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     doc = db.get_document_by_id(doc_id)
     doc_title = doc['title']
@@ -547,14 +544,66 @@ async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: 
 
 @app.post("/api/document/sign/unep/", tags=["Подписание документов"], summary="Подписание документа в формате УНЭП")
 async def sign_document_unep(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-    temp_token = db_redis.get_token_by_email(email)
-    print("Токен из редиса в sign_document_unep: ", temp_token)
-    if token != temp_token:
-        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
+from datetime import datetime
 
+class User(BaseModel):
+    first_name:str
+    last_name:str
+    email:str
+    is_email_verified:bool
+    created_at: int
 
+@app.get("/api/user/info", 
+         tags=["Пользователь"], 
+         summary="Получение информации о пользователе",
+         response_model=User
+         )
+async def get_user_info(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+    """Получение информации о пользователе"""
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
+    try:
+        user = service.User(email, db, db_redis, flag_pg=True)
+        content = user.get_all_info()
+        print("Информация о пользователе: ", content)
+        return User(**content)
+
+    except Exception as ex:
+        print("Ошибка при получении информации о пользователе: ", ex)
+        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error fetching user info"}, status_code=500)
+
+class UserUpdate(BaseModel):
+    first_name:str
+    last_name:str
+    new_password:str
+
+@app.post("/api/user/info/update", 
+          tags=["Пользователь"], 
+          summary="Обновление информации о пользователе"
+          )
+async def update_user_info(user_update: UserUpdate, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+   """Обновление информации о пользователе"""
+   if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+
+   try:
+       user = service.User(email, db=db)
+    #   flag = user.update_info(user_update.first_name, user_update.last_name, user_update.new_password)
+       if 1==0: 
+           content = {'status': service.SUCCESS_STATUS,
+                      'message': 'Информация успешно обновлена!'}
+       else:
+           content = {'status': service.GENERAL_ERROR_STATUS,
+                      'message': 'Ошибка при обновлении информации'}
+       return JSONResponse(content=content)
+
+   except Exception as ex:
+       print("Ошибка при обновлении информации о пользователе: ", ex)
+       return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error updating user info"}, status_code=500)
 
 #Добавить такие API call запросы, что бы сторонний сервис (например 1c) мог взаимодействовать с API таким образом:
 #-регистрировать нового пользователя 
