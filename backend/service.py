@@ -99,7 +99,7 @@ class User:
           print(f"[ERROR] Database update failed: {ex}")
           return False
       
-      
+
   def chek_auth(self, password:str):
     """Метод проверяет авторизацию и генерирует ответ на фронт"""
     try:
@@ -108,7 +108,6 @@ class User:
       match response:
         case 0:
           self.__token = str(uuid.uuid4())
-          print("Генерируем токен: ", self.__token)
           if self.__db_redis.create_session(self.__email, self.__token):
             self.__session_active = True
             return {

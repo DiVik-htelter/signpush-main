@@ -458,7 +458,6 @@ class DatabaseRedis:
     try:
       self.r.setex(f"session:{token}", expire_seconds, json.dumps(session_data))
       self.r.setex(f"email_to_token:{email}", expire_seconds, token)
-      print("Сессия создана успешно")
       return True
     except Exception as ex:
       print("[ERROR] Error in create_session: ", ex)

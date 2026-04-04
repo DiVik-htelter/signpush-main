@@ -23,9 +23,6 @@ function SendDocument() {
 
     // Загрузка документов пользователя при монтировании компонента
 
-    // Он их подгружает еще раз? зачем? может стоит вынести в контекст и грузить один раз при входе в систему?
-    // на сколько эфективно подгружать один раз, а не список и подгружать файл только при открытии на просмотр, или это будет долго?
-    
     useEffect(() => {
         loadDocuments();
     }, []);
@@ -87,10 +84,10 @@ function SendDocument() {
         setIsLoading(true);
         try {
             // Здесь будет API запрос для отправки документа
-            // const result = await axios.post('/api/send-document', {
-            //     document_id: document.id,
-            //     recipient_email: selectedRecipient
-            // });
+             const result = await axios.post('/document/send', {
+                 document_id: document.id,
+                 email_to_send: selectedRecipient
+             });
 
             setAlertMessage(`Документ "${document.title}" отправлен пользователю ${selectedRecipient}`);
             setAlertType('success');
@@ -98,7 +95,7 @@ function SendDocument() {
             setSelectedDocument(null);
         } catch (err) {
             console.error('Ошибка при отправке документа:', err);
-            setAlertMessage('Ошибка при отправке документа');
+            setAlertMessage('Ошибка при отправке документа ' + err.response.data.message);
             setAlertType('danger');
         } finally {
             setIsLoading(false);

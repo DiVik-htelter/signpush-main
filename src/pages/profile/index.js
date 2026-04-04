@@ -80,14 +80,14 @@ function Profile() {
 
             // Временные данные для демонстрации
             setStats({
-                documentsCount: 12,
+                documentsCount: Cookies.get('documentsCount') || 120,
                 signaturesCount: 8,
                 pendingSignatures: 2
             });
         } catch (err) {
             console.error('Ошибка при загрузке статистики:', err);
         }
-    };
+    }; 
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;

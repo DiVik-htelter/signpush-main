@@ -60,8 +60,9 @@ function Index() {
 
                 console.log(result.data.papers)
                 setDocumentsCount(result.data?.papers.length);
+                Cookies.set('documentsCount', result.data?.papers.length, { path: '/' });
                 setFileList(result.data?.papers);
-                //setPages(Array(Number(countOfDocuments)));
+                setPages(Array(Number(countOfDocuments)));
             } catch (err) {
                 console.log(err);
         

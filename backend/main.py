@@ -45,10 +45,8 @@ def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
         token_redis = db_redis.get_token_by_email(email)
         return token == token_redis
     except Exception as ex:
-        print("[ERROR] Exception in check_token_redis: ", ex)
+        print(f"[ERROR] Exception in check_token_redis: {ex}")
         return False
-
-
 
 class oldUser(BaseModel):
   """
@@ -66,7 +64,6 @@ class oldUser(BaseModel):
       json_schema_extra={"example": "adminadmin"}
   )
   
-
 class AuthResponse(BaseModel):
   """Модель ответа при аутентификации"""
   status: int = Field(
@@ -96,12 +93,9 @@ async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)  ):
   - 2: Неверный логин или пароль
   - 3: Ошибка подключения к базе данных
   """
-  
   try:
     content = None
     token_redis = db_redis.get_token_by_email(old_user.mail)
-    print("Токен из редиса: ", token_redis)
-    print('user token', token)
     if token == token_redis:
         content = {
             'status': service.SUCCESS_STATUS,
@@ -110,14 +104,10 @@ async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)  ):
         }
     else:
         user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
-        content = user.chek_auth(old_user.password)
-       
-
-    print("Ответ из chek_auth: ", content)
+        content = user.chek_auth(old_user.password)   
   except Exception as exept:
-    print("Ошибка непосредственно в роуте chek_login(): ", exept) 
-    print(content)
-
+    print(f"[ERROR] Ошибка непосредственно в роуте chek_login(): {exept}") 
+  
   return JSONResponse(content=content)
 
 
@@ -196,7 +186,6 @@ class PapersResponse(BaseModel):
 async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):    
     try:
         if token == db_redis.get_token_by_email(paper.email):
-            print("Токены совпали, можно вставлять документ в БД")
             flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
         
             content = { 
@@ -210,7 +199,7 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
            }
        
     except Exception as exept:
-        print("Ошибка непосредственно в роуте добавления документа: ", exept) 
+        print(f"[ERROR] Ошибка непосредственно в роуте добавления документа: {exept}") 
     
     return JSONResponse(content=content)
 
@@ -225,7 +214,6 @@ async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = H
   """Получение списка документов по логину""" 
 
   temp_token = db_redis.get_token_by_email(email)
-  print("Токен из редиса в get_docs: ", temp_token)
   if token != temp_token:
       return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
   # если токен не валиден то логин не найдется, я не знаю нужна ли тут еще какая то проверка
@@ -275,7 +263,7 @@ async def doc_delete(doc_id:int, token: Optional[str] = Header(None), email: Opt
 
     flag = db.delet_document_by_id(doc_id) # id документа, который автоматически выдается в базе данных 
   except Exception as ex:
-    print('Ошибка при удалениии документа из БД: ', ex)
+    print(f"[ERROR] Ошибка при удалениии документа из БД: {ex}")
   
   content = {'status': 0,
              'message': 'Документ успешно удалён!',
@@ -384,10 +372,7 @@ async def sign_document(request: SignatureRequest, token: Optional[str] = Header
 
         if not check_token_redis(db_redis, token, email):
             return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
-
-
-        print(f"\n[API] Received signature request for document ID: {request.document_id}")
-        
+       
         # Валидация параметров подписи
         valid, error_msg = validate_signature_params(
             request.page_number, request.x, request.y, 
@@ -411,11 +396,8 @@ async def sign_document(request: SignatureRequest, token: Optional[str] = Header
                 content={"success": False, "message": "Документ не найден"},
                 status_code=404
             )
-        
-        print(f"[API] Original document retrieved: {doc['title']}")
-        
+               
         # Встраиваем подпись в PDF
-        
         
         signed_pdf, success = add_signature_to_pdf(
             pdf_base64=doc['base64'],
@@ -499,7 +481,6 @@ class newUser(BaseModel):
 async def register_user(user: newUser):
   """Регистрация нового пользователя"""
   flag = False
-  print(user)
   try:
     name = {
        'firstName': user.first_name,
@@ -514,7 +495,7 @@ async def register_user(user: newUser):
     
     return JSONResponse(content=content)    
   except Exception as ex:
-    print(f"Ошибка непостредственно в роуте register_user", ex)
+    print(f"[ERROR] Ошибка непостредственно в роуте register_user", ex)
 
 import base64
 from fastapi.responses import Response
@@ -569,11 +550,10 @@ async def get_user_info(token: Optional[str] = Header(None), email: Optional[str
     try:
         user = service.User(email, db, db_redis, flag_pg=True)
         content = user.get_all_info()
-        print("Информация о пользователе: ", content)
         return User(**content)
 
     except Exception as ex:
-        print("Ошибка при получении информации о пользователе: ", ex)
+        print("[ERROR] Ошибка при получении информации о пользователе: ", ex)
         return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error fetching user info"}, status_code=500)
 
 class UserUpdate(BaseModel):
@@ -602,8 +582,37 @@ async def update_user_info(user_update: UserUpdate, token: Optional[str] = Heade
        return JSONResponse(content=content)
 
    except Exception as ex:
-       print("Ошибка при обновлении информации о пользователе: ", ex)
+       print("[ERROR] Ошибка при обновлении информации о пользователе: ", ex)
        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error updating user info"}, status_code=500)
+
+
+class DocumentToSend(BaseModel):
+    document_id:int = Field(..., description="ID документа для отправки", json_schema_extra={"example": 1})
+    email_to_send:str = Field(..., description="Email получателя", json_schema_extra={"example": "recipient@example.com"})
+
+
+@app.post("/api/document/send",
+          tags=["Документы"], 
+          summary="Отправка документа на подпись стороннему сервису")
+async def send_document_to_external_service(send_info: DocumentToSend, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+    """Отправка документа между пользователями"""
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+
+    try:
+        if db.get_user_by_email(send_info.email_to_send) is None:
+           return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Email not found"}, status_code=404)
+        else:
+            document = db.get_document_by_id(send_info.document_id) 
+            db.insert_doc(document['title'], document['hash'], document['created_at'], document['base64'], send_info.email_to_send)
+
+    except Exception as ex:
+        print(f"[ERROR] Ошибка при отправке документа: {ex}")
+        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error send document"}, status_code=500)
+
+       
+
+
 
 #Добавить такие API call запросы, что бы сторонний сервис (например 1c) мог взаимодействовать с API таким образом:
 #-регистрировать нового пользователя 
@@ -612,7 +621,7 @@ async def update_user_info(user_update: UserUpdate, token: Optional[str] = Heade
 # проверка подписи документа
 
 
-@app.post("/api/somethink/register/", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
+@app.post("/api/somethink/register", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
 async def register_user_1c(user:newUser):
    pass
 
