@@ -2,6 +2,7 @@ from pydantic import BaseModel,  Field
 from database import Database, DatabaseRedis
 from datetime import datetime
 import uuid
+import re
 # статусы ответов на фронт:
 SUCCESS_STATUS = 0              # 0 - успешный вход
 INVALID_CREDENTIALS_STATUS = 2  # 2 - логин или пароль не верные или совпадают
@@ -58,11 +59,7 @@ class User:
   def get_all_info(self) -> dict:
     """
     Возвращает всю информацию о пользователе в виде словаря\n
-    Returns: first_name
-      last_name
-      email
-      is_email_verified
-      created_at
+    Returns:  first_name, last_name, email, is_email_verified, created_at
     """
     content = {
       'first_name': self.__first_name,
@@ -76,25 +73,33 @@ class User:
   
 
 
-  def set_name(self, first_name:str, last_name:str):
-    # нужна валидация на спец символы и прочее для предотвращения траблов с бд
-    from pydantic import field_validator
+  def set_name(self, first_name: str, last_name: str) ->bool:
+      NAME_REGEX = re.compile(r"^[a-zA-Zа-яА-ЯёЁ\s-]+$")
+      # 1. Валидация
+      for name_part, label in [(first_name, "Имя"), (last_name, "Фамилия")]:
+          if not name_part or len(name_part) < 2:
+              return False          
+          if not NAME_REGEX.match(name_part):
+              return False
 
-    class UserName(BaseModel):
-      name: str = Field(..., min_length=2)
+      # 2. Форматирование (опционально)
+      formatted_first = first_name.strip().title()
+      formatted_last = last_name.strip().title()
 
-      @field_validator('name')
-      @classmethod
-      def abc(cls, v:str) ->str:
-        if not all(char.isalpha() or char.isspace() for char in v):
-          raise ValueError('Имя должно содержать только буквы и пробелы')
-        return v.title()
-
-    self.__first_name = first_name
-    self.__last_name = last_name
-    self.__db.change_userName_by_id(self.__id,self.__first_name, self.__last_name)
-
-
+      # 3. Работа с БД
+      try:
+          # Сначала пробуем обновить БД
+          self.__db.change_userName_by_id(self.__id, formatted_first, formatted_last)
+          
+          # Если БД не упала, обновляем состояние объекта
+          self.__first_name = formatted_first
+          self.__last_name = formatted_last
+          return True
+      except Exception as ex:
+          print(f"[ERROR] Database update failed: {ex}")
+          return False
+      
+      
   def chek_auth(self, password:str):
     """Метод проверяет авторизацию и генерирует ответ на фронт"""
     try:

@@ -11,6 +11,8 @@ import { DateTime } from "luxon";
 import './profile.css';
 
 function Profile() {
+    const nameRegex = /^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ-]+$/;
+
     const [userInfo, setUserInfo] = useState({
         email: Cookies.get('user'),
         firstName: '',
@@ -102,8 +104,20 @@ function Profile() {
             return false;
         }
 
+        if (!nameRegex.test(formData.firstName.trim())) {
+            setAlertMessage('Имя может содержать только буквы и короткое тире (-)');
+            setAlertType('warning');
+            return false;
+        }
+
         if (!formData.lastName.trim()) {
             setAlertMessage('Пожалуйста, введите фамилию');
+            setAlertType('warning');
+            return false;
+        }
+
+        if (!nameRegex.test(formData.lastName.trim())) {
+            setAlertMessage('Фамилия может содержать только буквы и короткое тире (-)');
             setAlertType('warning');
             return false;
         }
@@ -141,7 +155,7 @@ function Profile() {
         setIsLoading(true);
         try {
             // API запрос для обновления информации
-             const result = await axios.post('/api/user/info/update', {
+            await axios.post('/user/info/update', {
                  first_name: formData.firstName,
                  last_name: formData.lastName,
                  new_password: formData.newPassword

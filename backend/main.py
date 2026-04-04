@@ -591,9 +591,9 @@ async def update_user_info(user_update: UserUpdate, token: Optional[str] = Heade
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
    try:
-       user = service.User(email, db=db)
-    #   flag = user.update_info(user_update.first_name, user_update.last_name, user_update.new_password)
-       if 1==0: 
+       user = service.User(email, db=db,flag_pg=True)
+       flag = user.set_name(user_update.first_name, user_update.last_name)
+       if flag:
            content = {'status': service.SUCCESS_STATUS,
                       'message': 'Информация успешно обновлена!'}
        else:
