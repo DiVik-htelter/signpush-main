@@ -70,9 +70,6 @@ class User:
     }
     return content
   
-  
-
-
   def set_name(self, first_name: str, last_name: str) ->bool:
       NAME_REGEX = re.compile(r"^[a-zA-Zа-яА-ЯёЁ\s-]+$")
       # 1. Валидация
@@ -158,9 +155,17 @@ from cryptography.hazmat.primitives import serialization
 
 # Модели для валидации данных через Pydantic
 class KeyPair(BaseModel):
-    private_key_pem: str = Field(..., description="Приватный ключ в формате PEM (Base64 строка)")
-    public_key_pem: str = Field(..., description="Публичный ключ в формате PEM (Base64 строка)")
+    private_key: str
+    public_key: str
 
+
+import gostcrypto
+import os
+
+
+# сейчас данные (ключи) ходят туда сюда на прямую, для защиты
+# нужно сразу сохранять их в бд и получать только по токену сессии (а не email)
+# 
 
 class SignatureUNEP:  
     """
@@ -168,81 +173,98 @@ class SignatureUNEP:
     генерация ключей, подпись хэша и валидация.
     """
     
-    def __init__(self, email: str, db: Database=None, flag_pg: bool = False):
+    def __init__(self, email: str, db: Database = None, db_redis: DatabaseRedis = None):
         self.__email = email
         self.__db = db
-        self.__flag_pg = flag_pg
+        self.__db_redis = db_redis
 
-    def generate_user_keys(self) -> KeyPair:
+        self.__curve_params = gostcrypto.gostsignature.CURVES_R_1323565_1_024_2019[
+            'id-tc26-gost-3410-2012-256-paramSetB'
+        ]
+        self.__sign_obj = gostcrypto.gostsignature.new(
+            gostcrypto.gostsignature.MODE_256, 
+            self.__curve_params
+        )
+
+    def hash_document(self, document:str = "test document") -> bytes:
+        """Получение хэша строки по алгоритму ГОСТ Р 34.11-2012 (стрибог)"""
+        try:
+            document = document.encode('utf-8') 
+            hash_obj = gostcrypto.gosthash.new('streebog256', data=document)
+            return hash_obj.digest()
+        except Exception as e:
+            print(f"[ERROR] Hashing failed: {e}")
+            return None
+
+    def generate_user_keys(self) -> KeyPair | None:
         """
-        Генерирует пару ключей Ed25519 для пользователя.
-        Ключи возвращаются в формате PEM (Base64 строки).
-        """
-        # Генерация приватного ключа
-        private_key = ed25519.Ed25519PrivateKey.generate()
-        
-        # Сериализация приватного ключа
-        priv_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ).decode('utf-8')
-
-        # Генерация и сериализация публичного ключа
-        public_key = private_key.public_key()
-        pub_pem = public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode('utf-8')
-
-        return KeyPair(private_key_pem=priv_pem, public_key_pem=pub_pem)
-
-    def sign_document_hash(self, doc_hash: str, private_key_pem: str) -> str:
-        """
-        Шифрует (подписывает) хэш документа приватным ключом.
-        doc_hash: SHA-256 хэш документа в hex или строке.
+        Генерирует пару ключей гост 34.11-2012 для пользователя.
+        Ключи возвращаются в формате base64
         """
         try:
-            # Загружаем приватный ключ из PEM
-            private_key = serialization.load_pem_private_key(
-                private_key_pem.encode('utf-8'),
-                password=None
-            )
+
+            q = self.__curve_params['q']
+
+            while True:
+                d = (int.from_bytes(os.urandom(32), 'big') % (q -1)) + 1
+                if 0 < d < q:
+                    private_key = d.to_bytes(32, 'big')
+                    break
+            public_key = self.__sign_obj.public_key_generate(private_key)
+
+            if len(private_key) != 32 or len(public_key) != 64:
+                raise ValueError("Generated keys have incorrect length")
             
-            # Подписываем данные (хэш)
-            # В Ed25519 подпись идет сразу по данным, хэширование встроено
-            signature = private_key.sign(doc_hash.encode('utf-8'))
+            # Проверка на соответствие ключей
+            digest = self.hash_document("test")
+            signature = self.__sign_obj.sign(private_key, digest)
+
+            if not self.__sign_obj.verify(public_key, digest, signature):
+                raise ValueError("Signature verification failed with generated keys")
+
+            private_key_b64 = base64.b64encode(private_key).decode()
+            public_key_b64 = base64.b64encode(public_key).decode()
+
+            return KeyPair(private_key=private_key_b64, public_key=public_key_b64)
+        except Exception as e:
+            print(f"[ERROR] Key generation failed: {e}")
+            return None
+
+
+    def sign_document_hash(self, doc_hash: str, private_key: str) -> str:
+        """
+        Шифрует (подписывает) хэш документа приватным ключом.
+        doc_hash: хэш документа.
+        """
+        try: 
+            #if self.__db_redis.get_token_by_email(self.__email) is None:
+            #    raise ValueError("Пользователь не авторизован. Нет активной сессии.")
             
-            return base64.b64encode(signature).decode('utf-8')
+            #private_key_b64 = self.__db.get_private_key_by_email(self.__email)  
+            #private_key = base64.b64decode(private_key_b64)
+
+            signature = self.__sign_obj.sign(base64.b64decode(private_key), doc_hash)
+            return signature
         except Exception as e:
             print(f"[ERROR] Signing failed: {e}")
             raise ValueError("Ошибка при создании подписи")
 
-    def verify_signature(self, doc_hash: str, signature_b64: str, public_key_pem: str) -> bool:
+    def verify_signature(self, doc_hash: str, signature: str, public_key: str) -> bool:
         """
         Валидация подписи: декодирование хэша по публичному ключу 
         и сравнение с исходным хэшем.
         """
         try:
-            # Загружаем публичный ключ
-            public_key = serialization.load_pem_public_key(
-                public_key_pem.encode('utf-8')
-            )
-            
-            # Декодируем подпись из base64
-            signature = base64.b64decode(signature_b64)
-            
-            # Проверка. Если подпись неверна, метод verify выбросит InvalidSignature
-            public_key.verify(signature, doc_hash.encode('utf-8'))
-            return True
+            return self.__sign_obj.verify(base64.b64decode(public_key), doc_hash, signature)
         except Exception as e:
             print(f"[INFO] Signature verification failed: {e}")
             return False
 
     def save_keys_to_db(self, keys: KeyPair) -> bool:
-        """Пример интеграции с БД (без реализации подключения)"""
-        if self.__db:
-            # Логика сохранения в Postgres (например, в таблицу user_keys)
-            
-            pass
-        return True
+        try:
+            self.__db.insert_pair_keys(self.__email, keys.private_key, keys.public_key)
+            return True
+        except Exception as e:
+            print(f"[ERROR] Saving keys to DB failed: {e}")
+            raise ValueError("Ошибка при сохранении ключей в базу данных")
+        
