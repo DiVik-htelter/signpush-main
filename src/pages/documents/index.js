@@ -21,26 +21,12 @@ function Index() {
     const [pages, setPages] = useState([1]);
     const [currentPage, setCurrentPage] = useState(0);
     const [documentType, setDocumentType] = useState('Все документы');
-    const [documentsCount, setDocumentsCount] = useState(0);
 
     const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs';
     const offset = 10;
 
     useEffect(() => {
         (async function () {
-            let params = {offset: currentPage * offset};
-
-            switch (documentType) {
-                case 'Необходимо подписать': 
-                    params['signedByMe'] = 0;
-                    break;
-                case 'Ожидание подписи':
-                    params['signed'] = 0;
-                    params['signedByMe'] = 1;
-                    params['sugnatures'] = 1;
-                    break;
-            }
-
             try {
                 const result = await axios.get(
                     DOCUMENTS_URL
@@ -59,7 +45,6 @@ function Index() {
     
 
                 console.log(result.data.papers)
-                setDocumentsCount(result.data?.papers.length);
                 Cookies.set('documentsCount', result.data?.papers.length, { path: '/' });
                 setFileList(result.data?.papers);
                 setPages(Array(Number(countOfDocuments)));
@@ -69,43 +54,63 @@ function Index() {
                 return;
             }
         })();
-    }, [documentType, currentPage]);
+    }, [currentPage]);
 
     // 👇 files is not an array, but it's iterable, spread to get an array of files
-    const files = fileList ? [...fileList] : [];
+    const files = (fileList ? [...fileList] : []).filter((item) => {
+        if (documentType === 'unsigned' || documentType === 'fully_signed') {
+            return item.signing_status === documentType;
+        }
+
+        return true;
+    });
+    const documentsCount = files.length;
 
     const setPage = async (currentPage) => {
         setCurrentPage(currentPage.selected);
     }
 
     const setType = async (type) => {
+        // Тут нужно разделить логику по фильтрации документов 
+        // fileList[i].signing_status === 'unsigned' 
         setCurrentPage(0);
         setDocumentType(type);
     }
 
-    const showPdfClick = async (i) => {
+    const showPdfClick = async (doc) => {
+        let selectedDocument = doc;
 
-        if (fileList[i].base64 == undefined) {
+        if (selectedDocument.base64 === undefined) {
             let result = await axios.patch(
                 DOCUMENTS_URL, null,
                 {
                     params:{
-                        doc_id: fileList[i].id
+                        doc_id: selectedDocument.id
                     }
                 }
             );
-            fileList[i].base64 = result.data?.base64;
+
+            selectedDocument = {
+                ...selectedDocument,
+                base64: result.data?.base64
+            };
+
+            setFileList((prev) => prev.map((item) => (
+                item.id === selectedDocument.id
+                    ? { ...item, base64: selectedDocument.base64 }
+                    : item
+            )));
         }
-        setFileName(fileList[i].base64);
-        setFileId(fileList[i].id);
+        setFileName(selectedDocument.base64);
+        setFileId(selectedDocument.id);
     }
 
-    const deleteDoc = async (i) => {
-        const result = await axios.delete(
+    const deleteDoc = async (doc) => {
+        await axios.delete(
                     DOCUMENTS_URL,
                     { 
                         params:{
-                            doc_id: fileList[i].id
+                            doc_id: doc.id
                         }
                     }
                 );
@@ -113,8 +118,7 @@ function Index() {
 
     }
 
-    const saveDoc = async (i) => {
-        const doc = fileList[i]; // Получаем данные текущего документа из стейта
+    const saveDoc = async (doc) => {
     
         try {
             const response = await axios.get(
@@ -163,8 +167,8 @@ function Index() {
                             </Dropdown.Toggle>
 
                             <Dropdown.Menu>
-                                <Dropdown.Item href="#/action-1" onClick={() => setType('Необходимо подписать')}>Необходимо подписать</Dropdown.Item>
-                                <Dropdown.Item href="#/action-2" onClick={() => setType('Ожидание подписи')}>Ожидание подписи</Dropdown.Item>
+                                <Dropdown.Item href="#/action-1" onClick={() => setType('unsigned')}>Необходимо подписать</Dropdown.Item>
+                                <Dropdown.Item href="#/action-2" onClick={() => setType('fully_signed')}>Подписанные</Dropdown.Item>
                                 <Dropdown.Item href="#/action-3" onClick={() => setType('Все документы')}>Все документы</Dropdown.Item>
                             </Dropdown.Menu>
                         </Dropdown>
@@ -182,21 +186,21 @@ function Index() {
                 </tr>
                 </thead>
                 <tbody>
-                {files.map((file, i) => (
-                    <tr key={i}>
+                {files.map((file) => (
+                    <tr key={file.id}>
                         <td>{file.title}</td>
                         <td className='hash-column'>{file.hash}</td>
                         <td>{file.created_at}</td>
                         <td></td>
                         <td colSpan={2}>
                             <div className="action-button">
-                                <Button onClick={() => showPdfClick(i)}>Просмотр</Button>
+                                <Button onClick={() => showPdfClick(file)}>Просмотр</Button>
                             </div>
                             <div className='action-button'>
-                                <Button onClick={() => deleteDoc(i)}>Удалить</Button>
+                                <Button onClick={() => deleteDoc(file)}>Удалить</Button>
                             </div>
                             <div className='action-button'>
-                                <Button onClick={() => saveDoc(i)}>Скачать</Button>
+                                <Button onClick={() => saveDoc(file)}>Скачать</Button>
                             </div>
                         </td>
                     </tr>

@@ -135,7 +135,7 @@ class Database:
                 d.id,
                 d.title,
                 d.hash,
-                
+                d.signing_status,
                 d.created_at,
                 u.email
             FROM documents d

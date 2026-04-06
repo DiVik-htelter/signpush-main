@@ -159,6 +159,11 @@ class PaperList(BaseModel):
         description="SHA256 хеш документа для проверки целостности",
         json_schema_extra={"example": "a1b2c3d4e5f6..."}
     )
+    signing_status: str = Field(
+        ..., 
+        description="Статус подписания документа",
+        json_schema_extra={"example": "unsigned" }
+    )
     created_at: int = Field(
         ..., 
         description="Время создания документа (Unix timestamp в секундах)",
@@ -621,7 +626,7 @@ async def send_document_to_external_service(send_info: DocumentToSend, token: Op
 # проверка подписи документа
 
 
-@app.post("/api/somethink/register", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
+@app.post("/api/v1/register", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
 async def register_user_1c(user:newUser):
    pass
 
@@ -631,7 +636,7 @@ class DocumentSome(Paper):
    deadlite_at: int = Field(..., description="Крайний срок подписи документа документа (Unix timestamp в секундах)", json_schema_extra={"example": 1704067200})
    
 
-@app.post("/api/somethink/document/insert", tags=["API стороннего сервиса"], summary="ОТправка документа для подписания")
+@app.post("/api/v1/document/insert", tags=["API стороннего сервиса"], summary="ОТправка документа для подписания")
 async def insert_doc_1c(document:DocumentSome):
    pass
 
@@ -652,7 +657,7 @@ async def send_signed_doc(callback_url:str, data:ResponseDoc):
 
 
 # Эндпоинт чисто запускает задачу на отправку документа на 1С
-@app.post("/api/somethink/webhook/", tags=["API стороннего сервиса"], summary="Возврат подписанного документа на сторонний сервис")
+@app.post("/api/v1/webhook", tags=["API стороннего сервиса"], summary="Возврат подписанного документа на сторонний сервис")
 async def return_doc_to_1c(
    callback_url:str,
    background_tasks: BackgroundTasks
@@ -685,7 +690,7 @@ class SignatureValidationResponse(BaseModel):
     message: str = Field(..., description="Описание результата проверки")
 
 
-@app.get("/api/somethink/sign-verification/", tags=["API стороннего сервиса"], summary="Проверка валидности подписи УНЭП", response_model=SignatureValidationResponse)
+@app.get("/api/v1/sign-verification", tags=["API стороннего сервиса"], summary="Проверка валидности подписи УНЭП", response_model=SignatureValidationResponse)
 async def check_valid_sign(sign:SignatureValidationRequest):
    pass
 
