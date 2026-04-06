@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import Database, DatabaseRedis
 from pdf_signer import add_signature_to_pdf, validate_signature_params
 import service
+from service import SignatureUNEP
 
 
 app = FastAPI(
@@ -541,6 +542,7 @@ class User(BaseModel):
     email:str
     is_email_verified:bool
     created_at: int
+    public_key: str
 
 @app.get("/api/user/info", 
          tags=["Пользователь"], 
@@ -616,7 +618,26 @@ async def send_document_to_external_service(send_info: DocumentToSend, token: Op
         return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error send document"}, status_code=500)
 
        
+@app.get("/api/user/keys/generate",
+         tags=["Пользователь"],
+         summary="Генерация пары ключей для пользователя"
+         )
+async def generate_keys_for_user(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+    """Генерация пары ключей"""
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
+    try:
+        sign = SignatureUNEP(email, db)
+        public_key = sign.generate_user_keys()
+        if public_key is None:
+            return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Keys already exist"}, status_code=400)
+        else:
+            return JSONResponse(content={'status': service.SUCCESS_STATUS, "message": "Keys generated successfully", "public_key": public_key}, status_code=200)
+
+    except Exception as ex:
+        print(f"[ERROR] Ошибка при генерации ключей для пользователя: {ex}")
+        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error generating keys"}, status_code=500)
 
 
 #Добавить такие API call запросы, что бы сторонний сервис (например 1c) мог взаимодействовать с API таким образом:

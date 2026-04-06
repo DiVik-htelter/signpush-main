@@ -66,7 +66,8 @@ class User:
         'last_name': self.__last_name,
         'email': self.__email,
         'is_email_verified': self.__is_email_verified,
-        'created_at': self.__created_at
+        'created_at': self.__created_at,
+        'public_key': self.__db.get_public_key_by_email(self.__email) if self.__db.get_public_key_by_email(self.__email) is not None else "Нет ключа"
         }
         return content
   
@@ -174,10 +175,9 @@ class SignatureUNEP:
     генерация ключей, подпись хэша и валидация.
     """
     
-    def __init__(self, email: str, db: Database = None, db_redis: DatabaseRedis = None):
+    def __init__(self, email: str, db: Database):
         self.__email = email
         self.__db = db
-        self.__db_redis = db_redis
 
         self.__curve_params = gostcrypto.gostsignature.CURVES_R_1323565_1_024_2019[
             'id-tc26-gost-3410-2012-256-paramSetB'
@@ -211,6 +211,10 @@ class SignatureUNEP:
         Ключи сохраняются в формате base64
         """
         try:
+            if self.__db.get_public_key_by_email(self.__email) is not None:
+                print(f"[INFO] User {self.__email} already has keys, skipping generation.")
+                return None
+            
             q = self.__curve_params['q']
 
             while True:
@@ -246,10 +250,7 @@ class SignatureUNEP:
         Шифрует (подписывает) хэш документа приватным ключом.
         doc_hash: хэш документа.
         """
-        try: 
-            if self.__db_redis.get_token_by_email(self.__email) is None:
-                raise ValueError("Пользователь не авторизован. Нет активной сессии.")
-            
+        try:         
             private_key_b64 = self.__db.get_private_key_by_email(self.__email)  
             private_key = base64.b64decode(private_key_b64)
 

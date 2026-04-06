@@ -17,7 +17,8 @@ function Profile() {
         email: Cookies.get('user'),
         firstName: '',
         lastName: '',
-        createdAt: ''
+        createdAt: '',
+        publicKey: ''
     });
 
     const [editMode, setEditMode] = useState(false);
@@ -39,6 +40,8 @@ function Profile() {
     const [alertType, setAlertType] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    const hasPublicKey = Boolean(userInfo.publicKey && userInfo.publicKey !== 'Нет ключа');
+
     useEffect(() => {
         loadUserInfo();
         loadStats();
@@ -49,12 +52,15 @@ function Profile() {
             const result = await axios.get('/user/info')
 
             console.log("Полученная информация о пользователе: ", result.data);
+            
+            
             setUserInfo({
                 ...userInfo,
                 firstName: result.data.first_name,
                 lastName: result.data.last_name,
                 createdAt: DateTime.fromSeconds(result.data.created_at).toFormat('ff'),
-                email: result.data.email
+                email: result.data.email, 
+                publicKey: result.data.public_key 
             });
 
 
@@ -191,6 +197,16 @@ function Profile() {
         }
     };
 
+    const handleGenerateKeys = async () => {
+
+        const result = await axios.get('/user/keys/generate');
+
+        if (result.data.status === 0) {
+            window.location.reload();
+        }
+
+    };
+
     return (
         <div className="profile-container">
             <h1>Мой профиль</h1>
@@ -267,6 +283,24 @@ function Profile() {
                                     <div className="info-item">
                                         <label>Дата регистрации</label>
                                         <p>{userInfo.createdAt}</p>
+                                    </div>
+                                </Col>
+                                <Col xs={12} sm={6}>
+                                    <div className="info-item">
+                                        <label>
+                                            Публичный ключ
+                                            {!hasPublicKey && (
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    className="ms-2"
+                                                    onClick={handleGenerateKeys}
+                                                >
+                                                    Сгенерировать ключи
+                                                </Button>
+                                            )}
+                                        </label>
+                                        <p>{userInfo.publicKey}</p>
                                     </div>
                                 </Col>
                                 <Col xs={12} sm={6}>

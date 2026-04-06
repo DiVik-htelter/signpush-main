@@ -12,9 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
     
     is_email_verified BOOLEAN DEFAULT false,
     
-    -- Метаданные сертификата (Unix Timestamp)
-    private_key BIGINT, -- 64-битное поле
-    public_key BIGINT
+    private_key TEXT,
+    public_key TEXT
     
     created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     updated_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
