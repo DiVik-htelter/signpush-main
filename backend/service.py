@@ -197,13 +197,20 @@ class SignatureUNEP:
             print(f"[ERROR] Hashing failed: {e}")
             return None
 
+    async def __save_keys_to_db(self, keys: KeyPair) -> bool:
+        try:
+            self.__db.insert_keys_by_email(self.__email, keys.private_key, keys.public_key)
+            return True
+        except Exception as e:
+            print(f"[ERROR] Saving keys to DB failed: {e}")
+            raise ValueError("Ошибка при сохранении ключей в базу данных")
+
     def generate_user_keys(self) -> KeyPair | None:
         """
         Генерирует пару ключей гост 34.11-2012 для пользователя.
-        Ключи возвращаются в формате base64
+        Ключи сохраняются в формате base64
         """
         try:
-
             q = self.__curve_params['q']
 
             while True:
@@ -227,25 +234,26 @@ class SignatureUNEP:
             private_key_b64 = base64.b64encode(private_key).decode()
             public_key_b64 = base64.b64encode(public_key).decode()
 
-            return KeyPair(private_key=private_key_b64, public_key=public_key_b64)
+            self.__db.insert_keys_by_email(self.__email, private_key_b64, public_key_b64)
+            return  public_key_b64
         except Exception as e:
             print(f"[ERROR] Key generation failed: {e}")
             return None
 
 
-    async def sign_document_hash(self, doc_hash: str, private_key: str) -> str:
+    async def sign_document_hash(self, doc_hash: str) -> str:
         """
         Шифрует (подписывает) хэш документа приватным ключом.
         doc_hash: хэш документа.
         """
         try: 
-            #if self.__db_redis.get_token_by_email(self.__email) is None:
-            #    raise ValueError("Пользователь не авторизован. Нет активной сессии.")
+            if self.__db_redis.get_token_by_email(self.__email) is None:
+                raise ValueError("Пользователь не авторизован. Нет активной сессии.")
             
-            #private_key_b64 = self.__db.get_private_key_by_email(self.__email)  
-            #private_key = base64.b64decode(private_key_b64)
+            private_key_b64 = self.__db.get_private_key_by_email(self.__email)  
+            private_key = base64.b64decode(private_key_b64)
 
-            signature = self.__sign_obj.sign(base64.b64decode(private_key), doc_hash)
+            signature = self.__sign_obj.sign(private_key, doc_hash)
             print(f"[INFO] Document signed successfully for user {self.__email}")
             return signature
         except Exception as e:
@@ -263,14 +271,7 @@ class SignatureUNEP:
             print(f"[ERROR] Signature verification failed: {e}")
             return False
 
-    async def save_keys_to_db(self, keys: KeyPair) -> bool:
-        try:
-            #self.__db.insert_pair_keys(self.__email, keys.private_key, keys.public_key)
-            #return True
-            pass
-        except Exception as e:
-            print(f"[ERROR] Saving keys to DB failed: {e}")
-            raise ValueError("Ошибка при сохранении ключей в базу данных")
+
         
     def generate_sign_file(self):
         try:

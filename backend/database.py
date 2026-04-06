@@ -12,7 +12,7 @@ class Database:
   def __init__(self):
     """Установление соединения с бд"""
     try:
-      self.connection = psycopg2.connect(
+      self.__connection = psycopg2.connect(
         host=host,
         user=user,
         password=password,
@@ -20,21 +20,19 @@ class Database:
         port=port )
       
       # Включение автокоммита
-      self.connection.autocommit = True
-      with self.connection.cursor() as cursor:
+      self.__connection.autocommit = True
+      with self.__connection.cursor() as cursor:
         cursor.execute("SELECT version();")
         print(f"Server version: {cursor.fetchone()}")
-
       print("[INFO] Connection to PostgreSQL established")
-      #return self.connection
     except Exception as ex:
-      print("[ERROR] Error connecting to database:", ex)
+      print(f"[ERROR] Error connecting to database: {ex}")
       
 
   def __del__(self):
     """Закрывает соединение с базой данных"""
-    if self.connection:
-      self.connection.close()
+    if self.__connection:
+      self.__connection.close()
       print("[INFO] PostgreSQL connection closed")
 
 
@@ -47,10 +45,10 @@ class Database:
     """
     password_hash = sha256(password.encode()).hexdigest()
 
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No active database connection")
     try:
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         # Используем %s плейсхолдеры для параметризованного запроса
         if name is None:
           cursor.execute(
@@ -64,19 +62,19 @@ class Database:
                 (login, password_hash, name['firstName'], name['lastName'])
           )
         else: 
-          print("[INFO] Не валидная структура name", name)
+          print(f"[INFO] Не валидная структура name: {name}")
           return False
-        self.connection.commit()
+        self.__connection.commit()
         print(f"[INFO] User {login} was successfully inserted")
         
         return True
       
     except psycopg2.Error as ex:
       if ex.pgcode == errorcodes.UNIQUE_VIOLATION:
-        print("[INFO] Email is not originality", ex)
+        print(f"[INFO] Email is not originality: {ex}")
         # нужно следать что то польше, чем строка в консоль, например отправить на API сообщение, о том что это не ошибка бд, а именно проблема уникальности
       else:
-        print('[ERROR] Error in the insert_user ', ex)
+        print(f'[ERROR] Error in the insert_user: {ex}')
       
       return False
 
@@ -98,11 +96,11 @@ class Database:
 
     password_hash = sha256(password.encode()).hexdigest()
 
-    if not self.connection:
+    if not self.__connection:
       return DB_CONNECTION_ERROR_STATUS
         
     try:
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         # Параметризованный запрос - безопасен от SQL-инъекций
         cursor.execute("SELECT password_hash FROM users WHERE email = %s;", (email,))
         result = cursor.fetchone()
@@ -124,11 +122,11 @@ class Database:
     Публичный метод: вытаскивает все документы загруженные или отправленные конкретному пользователю.
     Использует параметризованные запросы для защиты от SQL-инъекций.
     """
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No Activate database connection")
     try:
       # RealDictCursor возвращает результаты в виде словарей
-      with self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+      with self.__connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         # Параметризованный запрос с плейсхолдером %s
         cursor.execute(""" 
             SELECT 
@@ -142,12 +140,12 @@ class Database:
             JOIN users u ON d.owner_id = u.id
             WHERE u.email = %s
             ORDER BY d.created_at DESC;
-        """, (email,)) # d.base64,
+        """, (email,)) 
         results = cursor.fetchall()
         return results
       
     except Exception as ex:
-      print("[ERROR] Error in the check_docs:", ex)
+      print(f"[ERROR] Error in the check_docs: {ex}")
       with open("log.txt", "a", encoding="utf-8") as file:
         file.write("[ERROR] Error in the check_docs: " + str(ex) + "\n")
       return []
@@ -165,17 +163,17 @@ class Database:
         base64: Содержимое PDF в base64
         email: Email пользователя
     """
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No Activate database connection")
     try:
       print(f'[INFO]\ntitle:{title}\nhash:{hash}\ncreated_at:{created_at}\nbase64:{base64[:64]}...\nlogin:{email}')
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         # Параметризованный запрос с подзапросом для получения user_id
         cursor.execute("""
           INSERT INTO documents (title, hash, base64, owner_id)
           VALUES (%s, %s, %s, (SELECT id FROM users WHERE email = %s));
         """, (title, hash, base64, email)) 
-        self.connection.commit()
+        self.__connection.commit()
         print(f"[INFO] Document {title} was successfully inserted")
         return True
     except Exception as ex:
@@ -191,13 +189,13 @@ class Database:
     Args:
         id: Уникальный идентификатор документа
     """
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No Activate database connection")
     try:
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         # Параметризованный запрос - безопасен от SQL-инъекций
         cursor.execute("DELETE FROM documents WHERE id = %s;", (id,))
-        self.connection.commit() 
+        self.__connection.commit() 
         print(f"[INFO] Document id: {id}, deleted success")
         return True
     except Exception as ex:
@@ -217,10 +215,10 @@ class Database:
     Returns:
         Словарь с данными документа или None, если документ не найден
     """
-    if not self.connection:
-      raise ConnectionError("No active database connection")
+    if not self.__connection:
+      raise ConnectionError("No active database __connection")
     try:
-      with self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+      with self.__connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         cursor.execute("""
             SELECT 
                 d.id,
@@ -255,17 +253,17 @@ class Database:
     if deadline is None:
       deadline = int(time()) + 100
 
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No active database connection")
     try:
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         cursor.execute("""
           INSERT INTO signature_routes (document_id, required_signer_id, order_index, signature_note, deadline_at)
           VALUES (%s, (SELECT id FROM users WHERE email = %s), %s, %s, %s)
           RETURNING id;
         """, (document_id, email, 1, signature_note, deadline))
         result = cursor.fetchone()[0]
-        self.connection.commit()
+        self.__connection.commit()
       return result
     except Exception as ex:
       print("[ERROR] Error in __create_void_signature_rout ", ex)
@@ -292,11 +290,11 @@ class Database:
     Returns:
         ID нового документа или None при ошибке
     """
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No active database connection")
     try:
       print(f'[INFO] Inserting signed document: {title}')
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         # Вставляем подписанный документ
         cursor.execute("""
           INSERT INTO documents (title, hash, base64, owner_id, created_at)
@@ -336,7 +334,7 @@ class Database:
             # Если таблица подписей не существует, просто игнорируем
             print(f"[WARNING] Could not save signature metadata: {sig_ex}")
         
-        self.connection.commit()
+        self.__connection.commit()
         print(f"[INFO] Signed document {title} was successfully inserted with ID: {new_doc_id}")
         return new_doc_id
         
@@ -355,10 +353,10 @@ class Database:
     Returns:
         Словарь с данными пользователя или None, если не найден
     """
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No active database connection")
     try:
-      with self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+      with self.__connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
         cursor.execute("""
             SELECT 
                 u.id,
@@ -385,10 +383,10 @@ class Database:
 
   def change_userName_by_id (self, id, new_first_name:str, new_last_name:str): 
     
-    if not self.connection:
+    if not self.__connection:
       raise ConnectionError("No active database connection")
     try:
-      with self.connection.cursor() as cursor:
+      with self.__connection.cursor() as cursor:
         cursor.execute("""
             UPDATE users 
             SET 
@@ -405,8 +403,72 @@ class Database:
       return None
 
 
+  def insert_keys_by_email(self, email:str, public_key:str, private_key:str) -> bool:
+    """Публичный метод: сохраняет пару ключей в БД в формате base64"""
+    if not self.__connection:
+      raise ConnectionError("No active database connection")
+    try:
+      with self.__connection.cursor() as cursor:
+        cursor.execute("""
+          UPDATE users 
+          SET 
+            public_key = %s, 
+            private_key = %s,
+            updated_at = EXTRACT(EPOCH FROM NOW())::BIGINT
+          WHERE email = %s;
+        """, (public_key, private_key, email))
+        self.__connection.commit()
+        print(f'[INFO] Keys for user {email} were successfully inserted')
+        return True
+    except Exception as ex:
+      print(f"[ERROR] Error in insert_keys_by_email: {ex}")
+      raise Exception("Error in insert_keys_by_email: " + str(ex))
+    return False
 
 
+  def get_private_key_by_email(self, email:str) -> str | None:
+    """Публичный метод: получает приватный ключ пользователя по его email"""
+    if not self.__connection:
+      raise ConnectionError("No active database connection")
+    try:
+      with self.__connection.cursor() as cursor:
+        cursor.execute("""
+          SELECT private_key 
+          FROM users 
+          WHERE email = %s;
+        """, (email,))
+        result = cursor.fetchone()
+        if result and result[0]:
+          print(f'[INFO] Private key for user {email} retrieved successfully')
+          return result[0]
+        else:
+          print(f'[ERROR] Private key for user {email} not found')
+          return None
+    except Exception as ex:
+      print(f"[ERROR] Error in get_private_key_by_email: {ex}")
+      return None
+
+  def get_public_key_by_email(self, email:str) -> str | None:
+    """Публичный метод: получает публичный ключ пользователя по его email"""
+    if not self.__connection:
+      raise ConnectionError("No active database connection")
+    try:
+      with self.__connection.cursor() as cursor:
+        cursor.execute("""
+          SELECT public_key 
+          FROM users 
+          WHERE email = %s;
+        """, (email,))
+        result = cursor.fetchone()
+        if result and result[0]:
+          print(f'[INFO] Public key for user {email} retrieved successfully')
+          return result[0]
+        else:
+          print(f'[ERROR] Public key for user {email} not found')
+          return None
+    except Exception as ex:
+      print(f"[ERROR] Error in get_public_key_by_email: {ex}")
+      return None
 
 
 
@@ -436,7 +498,7 @@ class DatabaseRedis:
     """Закрывает соединение с Redis"""
     try:
       self.r.close()
-      print("[INFO] Redis connection closed")
+      print("[INFO] Redis __connection closed")
     except Exception as ex:
       print("[ERROR] Error closing Redis connection:", ex)
 
@@ -470,11 +532,9 @@ class DatabaseRedis:
       print("[ERROR] Error in DatabasseRedis.get_token_by_email: ", ex)
       return None
 
-  def get_email_by_token(self, token:str) -> str |None:
+  def __get_email_by_token(self, token:str) -> str | None:
     try:
-      return 'admin@gmail.com'
-
-
+      return 'admin@gmail.com' 
     except Exception as ex:
       print("[ERROR] Error in DatabasseRedis.get_email_by_token: ", ex)
       return None

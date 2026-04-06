@@ -81,8 +81,8 @@ function Profile() {
             // Временные данные для демонстрации
             setStats({
                 documentsCount: Cookies.get('documentsCount') || 120,
-                signaturesCount: 8,
-                pendingSignatures: 2
+                signaturesCount: Cookies.get('documentsCountFullySigned') || 80,
+                pendingSignatures: Cookies.get('documentsCountUnsigned') || 20
             });
         } catch (err) {
             console.error('Ошибка при загрузке статистики:', err);

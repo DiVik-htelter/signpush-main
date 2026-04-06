@@ -9,6 +9,9 @@ import Cookies from 'js-cookie';
 
 export default function PdfReader({file, documentId}) {
     const canvasRef = useRef(null);
+    const isDraggingRef = useRef(false);
+    const startPointRef = useRef({ x: 0, y: 0 });
+    const pdfImageRef = useRef(null);
     const [pages, setPages] = useState([1]);
     const [pdf, setPdf] = useState([1]);
     const [currentPage, setCurrentPage] = useState(1);
@@ -23,7 +26,6 @@ export default function PdfReader({file, documentId}) {
     const [zoomScale, setZoomScale] = useState(1) // 1.0 = 100%
     //const zoomScale = 1; 
     const rotateAngle = 0;
-    var pdf_image = "";
 
     useEffect(() => {
         (async function () {
@@ -91,95 +93,87 @@ export default function PdfReader({file, documentId}) {
         },
         [pdfRef, file]
       );
-  var cursorInCanvas = false;
-  var canvasOfDoc = canvasRef?.current;
-  var ctx;
-  var startX;
-  var startY;
-  var offsetX;
-  var offsetY;
-
   const saveInitialCanvas = () => {
-    if (canvasOfDoc?.getContext) {
-      var canvasPic = new Image();
-      canvasPic.src = canvasOfDoc.toDataURL();
-      pdf_image = canvasPic;
+    const canvas = canvasRef.current;
+    if (canvas?.getContext) {
+      const canvasPic = new Image();
+      canvasPic.src = canvas.toDataURL();
+      pdfImageRef.current = canvasPic;
     }
   };
 
-  useEffect(() => {
-    if (canvasOfDoc) {
-      ctx = canvasOfDoc.getContext("2d");
-      var canvasOffset = canvasOfDoc.getBoundingClientRect();
-      offsetX = canvasOffset.left;
-      offsetY = canvasOffset.top;
+  const getCanvasCoords = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return { x: 0, y: 0 };
     }
-  }, [canvasOfDoc, pdfRef,  zoomScale, renderPage, file]);
 
-  function handleMouseIn(e) {
-    if (typeof pdf_image == "string") {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    return {
+      x: Math.round((event.clientX - rect.left) * scaleX),
+      y: Math.round((event.clientY - rect.top) * scaleY),
+    };
+  };
+
+  const handlePointerDown = (e) => {
+    if (!pdfImageRef.current) {
       saveInitialCanvas();
     }
+
     e.preventDefault();
     e.stopPropagation();
-    startX = ((e.offsetX * canvasOfDoc.width) / canvasOfDoc.clientWidth) | 0;
-    startY = ((e.offsetY * canvasOfDoc.width) / canvasOfDoc.clientWidth) | 0;
 
-    cursorInCanvas = true;
-  }
+    const coords = getCanvasCoords(e);
+    startPointRef.current = coords;
+    isDraggingRef.current = true;
+  };
 
-  function handleMouseOut(e) {
+  const handlePointerUp = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    cursorInCanvas = false;
-  }
+    isDraggingRef.current = false;
+  };
 
-  function handleMouseUp(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    cursorInCanvas = false;
-  }
-
-  function handleMouseMove(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!cursorInCanvas) {
+  const handlePointerMove = (e) => {
+    if (!isDraggingRef.current) {
       return;
     }
-    let mouseX = ((e.offsetX * canvasOfDoc.width) / canvasOfDoc.clientWidth) | 0;
-    let mouseY = ((e.offsetY * canvasOfDoc.width) / canvasOfDoc.clientWidth) | 0;
 
-    var width = mouseX - startX;
-    var height = mouseY - startY;
-    if (ctx) {
-      ctx?.clearRect(0, 0, canvasOfDoc.width, canvasOfDoc.height);
-      ctx?.drawImage(pdf_image, 0, 0);
-      ctx.beginPath();
-      ctx.rect(startX, startY, width, height);
-      ctx.strokeStyle = "#1B9AFF";
-      ctx.lineWidth = 5;
-      ctx.stroke();
+    e.preventDefault();
+    e.stopPropagation();
 
-      setXCoord(startX);
-      setYCoord(startY);
-
-      setWidth(width);
-      setHeight(height);
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
     }
-  }
 
-  canvasOfDoc?.addEventListener("mousedown", function (e) {
-    handleMouseIn(e);
-  });
-  canvasOfDoc?.addEventListener("mousemove", function (e) {
-    handleMouseMove(e);
-  });
-  canvasOfDoc?.addEventListener("mouseup", function (e) {
-    handleMouseUp(e);
-  });
-  canvasOfDoc?.addEventListener("mouseout", function (e) {
-    handleMouseOut(e);
-  });
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !pdfImageRef.current) {
+      return;
+    }
+
+    const { x: startX, y: startY } = startPointRef.current;
+    const { x: currentX, y: currentY } = getCanvasCoords(e);
+
+    const width = currentX - startX;
+    const height = currentY - startY;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(pdfImageRef.current, 0, 0);
+    ctx.beginPath();
+    ctx.rect(startX, startY, width, height);
+    ctx.strokeStyle = "#1B9AFF";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    setXCoord(startX);
+    setYCoord(startY);
+
+    setWidth(width);
+    setHeight(height);
+  };
 
   const handleCallback = (childData) => {
     // Получаем изображение подписи из модального окна (в base64)
@@ -188,18 +182,18 @@ export default function PdfReader({file, documentId}) {
     const canvas = canvasRef.current;
     const canvasContext = canvas.getContext('2d');
 
-    var canvasPic = new Image();
+    const canvasPic = new Image();
     canvasPic.src = childData;
-    pdf_image = canvasPic;
+    pdfImageRef.current = canvasPic;
 
     // Сохраняем данные подписи для отправки на сервер
     setSignatureImageData(childData);
 
-    pdf_image.onload = () => {
+    canvasPic.onload = () => {
       if (squareHeight === 0 || squareHeight === 0 || squareHeight === null || squareWidth === null) {
-        canvasContext.drawImage(pdf_image, 0, 0);
+        canvasContext.drawImage(canvasPic, 0, 0);
       } else {
-        canvasContext.drawImage(pdf_image, squareX, squareY, squareWidth, squareHeight);
+        canvasContext.drawImage(canvasPic, squareX, squareY, squareWidth, squareHeight);
       }
     };
   }
@@ -220,7 +214,7 @@ export default function PdfReader({file, documentId}) {
      const renderContext = { canvasContext, viewport };
      page.render(renderContext);
       
-     if (typeof pdf_image == "string") {
+     if (!pdfImageRef.current) {
        saveInitialCanvas();
      }
 
@@ -399,7 +393,15 @@ export default function PdfReader({file, documentId}) {
         <div className='pdf-container'>
             {/* <div className={isThumbnailsVisible ? "pdf-thumbnails pdf-thumbnails-active" : "pdf-thumbnails"}></div> */}
             <div className={isThumbnailsVisible ? "pdf-content pdf-content-active" : "pdf-content"}>
-                <canvas ref={canvasRef} style={{ height: '100vh' }} />
+              <canvas
+                ref={canvasRef}
+                style={{ height: '100vh', touchAction: 'none' }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              />
             </div>
         </div>
     </div>;

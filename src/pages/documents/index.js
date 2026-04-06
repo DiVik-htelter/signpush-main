@@ -52,22 +52,27 @@ function Index() {
                     DOCUMENTS_URL
                 );
 
-                let countOfDocuments = result.data?.message?.substring(
-                    result.data?.message.indexOf('are ') + 4, 
-                    result.data?.message.lastIndexOf('papers')
-                );
-
                 result.data.papers.map(item => {
                     item.created_at = DateTime.fromSeconds(item.created_at).toFormat('ff');
 
                     return item;
                 })
-    
-
-                console.log(result.data.papers)
-                Cookies.set('documentsCount', result.data?.papers.length, { path: '/' });
+                
                 setFileList(result.data?.papers);
-                setPages(Array(Number(countOfDocuments)));
+                const countOfDocuments = result.data?.papers.length;
+
+                Cookies.set('documentsCount', countOfDocuments, { path: '/' });
+
+                let countUnsignedDocuments = 0;
+                for (let i = 0; i < countOfDocuments; i++) {
+                    if (fileList[i].signing_status === 'unsigned') {
+                        countUnsignedDocuments++;
+                    }
+                }
+                Cookies.set('documentsCountUnsigned', countUnsignedDocuments, { path: '/' });
+                Cookies.set('documentsCountFullySigned', countOfDocuments - countUnsignedDocuments, { path: '/' });
+
+                setPages(countOfDocuments)
             } catch (err) {
                 console.log(err);
         
