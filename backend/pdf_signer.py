@@ -60,11 +60,9 @@ def add_signature_to_pdf(
         
         # Декодируем PDF из base64 в байты
         pdf_bytes = base64.b64decode(pdf_clean)
-        print(f"[INFO] PDF decoded, size: {len(pdf_bytes)} bytes")
         
         # Открываем PDF документ из байтов
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        print(f"[INFO] PDF opened successfully, total pages: {pdf_document.page_count}")
         
         # Проверяем валидность номера страницы
         if page_number < 0 or page_number >= pdf_document.page_count:

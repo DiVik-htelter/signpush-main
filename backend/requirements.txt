@@ -33,6 +33,7 @@ Pillow==10.1.0
 # python-dotenv - загрузка переменных окружения из .env файла
 python-dotenv==1.0.0
 
-# cryptography - криптографические операции (используется в service.py)
-cryptography==41.0.7
+# gostcrypto - криптографические операции (используется в service.py)
+gostcrypto==1.2.5
 
+asn1crypto==1.5.1

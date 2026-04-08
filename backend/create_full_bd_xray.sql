@@ -45,10 +45,6 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX IF NOT EXISTS idx_documents_owner_id ON documents(owner_id);
 
 
- 
-
-
-
 -- 3. МАРШРУТЫ ПОДПИСЕЙ
 CREATE TABLE IF NOT EXISTS signature_routes (
     id SERIAL PRIMARY KEY,

@@ -83,7 +83,7 @@ function Index() {
 
     // 👇 files is not an array, but it's iterable, spread to get an array of files
     const files = (fileList ? [...fileList] : []).filter((item) => {
-        if (documentType === 'unsigned' || documentType === 'fully_signed') {
+        if (documentType === 'unsigned' || documentType === 'fully_signed' || documentType === 'partially_signed') {
             return item.signing_status === documentType;
         }
 
@@ -255,7 +255,8 @@ function Index() {
                             <Dropdown.Menu>
                                 <Dropdown.Item href="#/action-1" onClick={() => setType('unsigned')}>Необходимо подписать</Dropdown.Item>
                                 <Dropdown.Item href="#/action-2" onClick={() => setType('fully_signed')}>Подписанные</Dropdown.Item>
-                                <Dropdown.Item href="#/action-3" onClick={() => setType('Все документы')}>Все документы</Dropdown.Item>
+                                <Dropdown.Item href="#/action-3" onClick={() => setType('partially_signed')}>Частично подписанные</Dropdown.Item>
+                                <Dropdown.Item href="#/action-4" onClick={() => setType('Все документы')}>Все документы</Dropdown.Item>
                             </Dropdown.Menu>
                         </Dropdown>
                     </nav>
@@ -274,7 +275,7 @@ function Index() {
                 <tbody>
                 {files.map((doc) => (
                     <React.Fragment key={doc.id}>
-                        <tr>
+                        <tr className={doc.signing_status === 'fully_signed' ? 'fully-signed-row' : ''}>
                             <td>
                                 <div>{doc.title}</div>
                             </td>

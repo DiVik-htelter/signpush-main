@@ -39,8 +39,12 @@ function Profile() {
     const [alertMessage, setAlertMessage] = useState('');
     const [alertType, setAlertType] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isPublicKeyVisible, setIsPublicKeyVisible] = useState(false);
 
     const hasPublicKey = Boolean(userInfo.publicKey && userInfo.publicKey !== 'Нет ключа');
+    const maskedPublicKey = hasPublicKey
+        ? '•'.repeat(Math.max(12, Math.min(userInfo.publicKey.length, 48)))
+        : userInfo.publicKey;
 
     useEffect(() => {
         loadUserInfo();
@@ -62,6 +66,7 @@ function Profile() {
                 email: result.data.email, 
                 publicKey: result.data.public_key 
             });
+            setIsPublicKeyVisible(false);
 
 
             setFormData({
@@ -299,8 +304,20 @@ function Profile() {
                                                     Сгенерировать ключи
                                                 </Button>
                                             )}
+                                            {hasPublicKey && (
+                                                <Button
+                                                    variant="link"
+                                                    size="sm"
+                                                    className="ms-2 p-0 align-baseline"
+                                                    onClick={() => setIsPublicKeyVisible((prev) => !prev)}
+                                                    title={isPublicKeyVisible ? 'Скрыть публичный ключ' : 'Показать публичный ключ'}
+                                                    aria-label={isPublicKeyVisible ? 'Скрыть публичный ключ' : 'Показать публичный ключ'}
+                                                >
+                                                    <i className={`bi ${isPublicKeyVisible ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+                                                </Button>
+                                            )}
                                         </label>
-                                        <p>{userInfo.publicKey}</p>
+                                        <p>{isPublicKeyVisible ? userInfo.publicKey : maskedPublicKey}</p>
                                     </div>
                                 </Col>
                                 <Col xs={12} sm={6}>
