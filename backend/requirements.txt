@@ -18,10 +18,10 @@ psycopg2-binary==2.9.9
 python-multipart==0.0.6
 
 # httpx - асинхронный HTTP клиент для внешних запросов
-httpx==0.25.0
+httpx==0.28.1
 
 # Redis клиент для хранения сессий
-redis==5.0.1
+redis==7.3.0
 
 # PyMuPDF (fitz) - библиотека для работы с PDF документами
 # Позволяет встраивать изображения подписей в PDF
@@ -33,7 +33,8 @@ Pillow==10.1.0
 # python-dotenv - загрузка переменных окружения из .env файла
 python-dotenv==1.0.0
 
-# gostcrypto - криптографические операции (используется в service.py)
+# gostcrypto - криптографические операции ГОСТ (УНЭП)
 gostcrypto==1.2.5
 
+# asn1crypto - сборка/разбор CMS(PKCS#7) контейнеров подписи
 asn1crypto==1.5.1

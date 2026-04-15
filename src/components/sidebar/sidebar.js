@@ -90,6 +90,16 @@ function Sidebar() {
                             <i className="bi bi-send"></i>
                             <span>Отправить документ</span>
                         </Link>
+
+                        <Link 
+                            className="sidebar-item" 
+                            to="/signature-verification"
+                            onClick={closeMenu}
+                            title="Проверка подписи"
+                        >
+                            <i className="bi bi-shield-check"></i>
+                            <span>Проверка подписи</span>
+                        </Link>
                     </div>
 
                     <div className="sidebar-section">

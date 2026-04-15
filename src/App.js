@@ -6,6 +6,7 @@ import SendDocument from "./pages/send-document";
 import Profile from "./pages/profile";
 import Settings from "./pages/settings";
 import Documents from "./pages/documents";
+import SignatureVerification from "./pages/signature-verification";
 import Login from "./pages/login";
 import Registration from "./pages/registration";
 import RequireAuth from "./components/require-auth";
@@ -55,6 +56,9 @@ function App() {
                         </Route>
                         <Route path="/documents" element={<Layout />}>
                             <Route index element={<Documents />} />
+                        </Route>
+                        <Route path="/signature-verification" element={<Layout />}>
+                            <Route index element={<SignatureVerification />} />
                         </Route>
                     </Route>
 

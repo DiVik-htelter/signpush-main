@@ -22,6 +22,7 @@ export default function PdfReader({file, documentId}) {
     const [squareWidth, setWidth] = useState(null);
     const [squareHeight, setHeight] = useState(null);
     const [isSaving, setIsSaving] = useState(false); // Флаг процесса сохранения
+    const [isUNEPSigning, setIsUNEPSigning] = useState(false); // Флаг подписи УНЭП
     const [signatureImageData, setSignatureImageData] = useState(null); // Данные подписи
     const [zoomScale, setZoomScale] = useState(1) // 1.0 = 100%
     //const zoomScale = 1; 
@@ -227,8 +228,53 @@ export default function PdfReader({file, documentId}) {
   }
 
   const handleSignedDocumentUNEP = async () => {
-    // Заглушка для функции подписания УНЭП
-    alert('Функция подписания УНЭП пока не реализована. Ожидайте обновлений!');
+    if (!documentId) {
+      alert('❌ Ошибка: ID документа не определён');
+      return;
+    }
+
+    try {
+      setIsUNEPSigning(true);
+
+      const response = await axios.post('/document/sign/unep/', {
+        document_id: documentId,
+      });
+
+      if (!response.data?.success) {
+        alert(`❌ Ошибка подписи УНЭП: ${response.data?.message || 'Неизвестная ошибка'}`);
+        return;
+      }
+
+      const signatureBase64 = response.data.signature_base64;
+      if (!signatureBase64) {
+        alert('❌ Сервер не вернул файл подписи');
+        return;
+      }
+
+      const byteCharacters = atob(signatureBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pkcs7-signature' });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${response.data.filename}.sig`); // response.data.filename
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      alert('✅ УНЭП подпись создана. Файл .sig загружен.');
+    } catch (error) {
+      console.error('Ошибка при подписи УНЭП:', error);
+      alert(`❌ Ошибка при подписи УНЭП: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setIsUNEPSigning(false);
+    }
   }
 
   /**
@@ -375,8 +421,9 @@ export default function PdfReader({file, documentId}) {
               <button
               type='button'
               className='btn btn-success'
+              disabled={!documentId || isUNEPSigning}
               onClick={handleSignedDocumentUNEP}
-              > Подписать УНЭП
+              > {isUNEPSigning ? 'Подписание...' : 'Подписать УНЭП'}
               </button>
             </div>
 

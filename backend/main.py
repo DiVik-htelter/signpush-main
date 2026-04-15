@@ -529,10 +529,167 @@ async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: 
     return Response(headers=headers, content=file_bytes)
 
 
-@app.post("/api/document/sign/unep/", tags=["Подписание документов"], summary="Подписание документа в формате УНЭП")
-async def sign_document_unep(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+def _normalize_base64_payload(value: str) -> str:
+    """Удаляет data-url префикс и пробелы для корректного base64-decode."""
+    if not value:
+        return value
+    if ',' in value:
+        _, value = value.split(',', 1)
+    return value.strip()
+
+
+def _decode_key_len(key_b64: Optional[str]) -> int:
+    """Возвращает длину ключа в байтах после base64-decode или -1 при ошибке."""
+    if not key_b64:
+        return -1
+    try:
+        return len(base64.b64decode(key_b64))
+    except Exception:
+        return -1
+
+
+class SignatureUNEPRequest(BaseModel):
+    document_id: int = Field(..., description="ID документа для подписи УНЭП", gt=0)
+
+
+class SignatureUNEPResponse(BaseModel):
+    success: bool = Field(..., description="Результат операции")
+    message: str = Field(..., description="Описание результата")
+    signature_base64: Optional[str] = Field(None, description="CMS контейнер подписи в base64")
+    attributes: Optional[list] = Field(None, description="Signed attributes подписи")
+    filename: str
+
+
+class SignatureValidationUNEPRequest(BaseModel):
+    document_base64: str = Field(..., description="Base64 содержимое подписанного документа")
+    signature_base64: str = Field(..., description="CMS подпись в base64")
+    signer_email: Optional[str] = Field(None, description="Email подписанта. Если не указан, используется текущий")
+
+
+class SignatureValidationUNEPResponse(BaseModel):
+    success: bool = Field(..., description="Успешность выполнения запроса")
+    is_valid: bool = Field(..., description="Валидна ли подпись")
+    message: str = Field(..., description="Описание результата")
+    attrs: list = Field(default_factory=list, description="Извлеченные signedAttrs")
+    checks: dict = Field(default_factory=dict, description="Детальные проверки")
+
+
+@app.post(
+    "/api/document/sign/unep/",
+    tags=["Подписание документов"],
+    summary="Подписание документа в формате УНЭП",
+    response_model=SignatureUNEPResponse
+)
+async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
     if not check_token_redis(db_redis, token, email):
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+
+    try:
+        doc = db.get_document_by_id(request.document_id)
+        if not doc:
+            return JSONResponse(content={"success": False, "message": "Документ не найден"}, status_code=404)
+
+        if doc.get('email') != email:
+            return JSONResponse(content={"success": False, "message": "Нет доступа к документу"}, status_code=403)
+
+        signer = SignatureUNEP(email, db)
+        private_key_b64 = db.get_private_key_by_email(email)
+        public_key_b64 = db.get_public_key_by_email(email)
+
+        private_len = _decode_key_len(private_key_b64)
+        public_len = _decode_key_len(public_key_b64)
+
+        # Нестандартное решение: автоисправление перепутанных местами ключей в БД.
+        # В проекте исторически встречался сценарий, когда private/public сохранялись наоборот.
+        if private_len == 64 and public_len == 32:
+            print(f"[WARNING] Detected swapped keys for user {email}. Auto-fixing in DB.")
+            private_key_b64, public_key_b64 = public_key_b64, private_key_b64
+            db.insert_keys_by_email(email, public_key_b64, private_key_b64)
+            private_len = _decode_key_len(private_key_b64)
+            public_len = _decode_key_len(public_key_b64)
+
+        # Валидный набор: private=32 bytes, public=64 bytes.
+        if private_len != 32 or public_len != 64:
+            print(f"[WARNING] Invalid key lengths for user {email}: private={private_len}, public={public_len}. Regenerating keys.")
+            generated_keys = signer.generate_user_keys()
+            if not generated_keys:
+                return JSONResponse(content={"success": False, "message": "Не удалось сгенерировать ключи"}, status_code=500)
+
+            public_key_b64, private_key_b64 = generated_keys
+            db.insert_keys_by_email(email, public_key_b64, private_key_b64)
+
+        document_for_sign = _normalize_base64_payload(doc['base64'])
+        signed_payload = signer.signed_hash(document_for_sign, private_key_b64)
+        cms_der = signer.create_cms_container(
+            signed_payload['signed_attrs_der'],
+            signed_payload['signature'],
+            public_key_b64,
+            output_filename=f"document_{request.document_id}.sig"
+        )
+
+        # Повторно разбираем подпись и возвращаем attrs, чтобы фронту было что показать.
+        verify_preview = signer.verify_cms_container(
+            cms_signature_bytes=cms_der,
+            signed_document=document_for_sign,
+            public_key_b64=public_key_b64,
+        )
+        filename = doc.get('title')
+        return JSONResponse(content={
+            "success": True,
+            "message": "Документ успешно подписан УНЭП",
+            "signature_base64": base64.b64encode(cms_der).decode(),
+            "attributes": verify_preview.get('attrs', []),
+            "filename": filename,
+            }, status_code=200)
+
+    except Exception as ex:
+        print(f"[ERROR] Ошибка в sign_document_unep: {ex}")
+        return JSONResponse(content={"success": False, "message": str(ex)}, status_code=500)
+
+
+@app.post(
+    "/api/document/verify/unep/",
+    tags=["Подписание документов"],
+    summary="Проверка валидности УНЭП подписи",
+    response_model=SignatureValidationUNEPResponse
+)
+async def verify_document_unep(request: SignatureValidationUNEPRequest, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+    if not check_token_redis(db_redis, token, email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+
+    try:
+        signer_email = request.signer_email or email
+        signer = SignatureUNEP(signer_email, db)
+
+        normalized_doc = _normalize_base64_payload(request.document_base64)
+        normalized_sig = _normalize_base64_payload(request.signature_base64)
+
+        cms_bytes = base64.b64decode(normalized_sig)
+
+        result = signer.verify_cms_container(
+            cms_signature_bytes=cms_bytes,
+            signed_document=normalized_doc,
+            public_key_b64=None,
+            allow_db_fallback=False,
+        )
+
+        return JSONResponse(content={
+            "success": True,
+            "is_valid": result.get('is_valid', False),
+            "message": "Подпись валидна" if result.get('is_valid') else "Подпись невалидна",
+            "attrs": result.get('attrs', []),
+            "checks": result.get('checks', {}),
+        }, status_code=200)
+
+    except Exception as ex:
+        print(f"[ERROR] Ошибка в verify_document_unep: {ex}")
+        return JSONResponse(content={
+            "success": False,
+            "is_valid": False,
+            "message": str(ex),
+            "attrs": [],
+            "checks": {}
+        }, status_code=500)
 
 from datetime import datetime
 
@@ -629,11 +786,18 @@ async def generate_keys_for_user(token: Optional[str] = Header(None), email: Opt
 
     try:
         sign = SignatureUNEP(email, db)
-        public_key = sign.generate_user_keys()
-        if public_key is None:
+        generated_keys = sign.generate_user_keys()
+        if generated_keys is None:
             return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Keys already exist"}, status_code=400)
         else:
-            return JSONResponse(content={'status': service.SUCCESS_STATUS, "message": "Keys generated successfully", "public_key": public_key}, status_code=200)
+            public_key_b64, private_key_b64 = generated_keys
+            db.insert_keys_by_email(email, public_key_b64, private_key_b64)
+
+            return JSONResponse(content={
+                'status': service.SUCCESS_STATUS,
+                "message": "Keys generated successfully",
+                "public_key": public_key_b64
+            }, status_code=200)
 
     except Exception as ex:
         print(f"[ERROR] Ошибка при генерации ключей для пользователя: {ex}")
@@ -713,7 +877,27 @@ class SignatureValidationResponse(BaseModel):
 
 @app.get("/api/v1/sign-verification", tags=["API стороннего сервиса"], summary="Проверка валидности подписи УНЭП", response_model=SignatureValidationResponse)
 async def check_valid_sign(sign:SignatureValidationRequest):
-   pass
+    try:
+        signer = SignatureUNEP(sign.email, db)
+        doc = db.get_document_by_id(sign.document_id)
+
+        if not doc:
+            return JSONResponse(content={"is_valid": False, "message": "Документ не найден"}, status_code=404)
+
+        result = signer.verify_cms_container(
+             cms_signature_bytes=base64.b64decode(_normalize_base64_payload(sign.base64)),
+             signed_document=_normalize_base64_payload(doc['base64']),
+               public_key_b64=None,
+               allow_db_fallback=False,
+        )
+
+        return SignatureValidationResponse(
+            is_valid=result.get('is_valid', False),
+            message="Подпись валидна" if result.get('is_valid', False) else "Подпись невалидна"
+        )
+    except Exception as ex:
+        print(f"[ERROR] Ошибка в check_valid_sign: {ex}")
+        return JSONResponse(content={"is_valid": False, "message": str(ex)}, status_code=500)
 
 
 

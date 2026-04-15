@@ -1,0 +1,64 @@
+.signature-verification-container {
+    margin-top: 20px;
+}
+
+.signature-verification-box {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.upload-row {
+    margin-bottom: 16px;
+}
+
+.upload-row input[type='file'] {
+    display: block;
+    margin-top: 8px;
+}
+
+.file-name {
+    margin-top: 6px;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.source-divider {
+    margin: 14px 0;
+    color: #6c757d;
+    font-size: 14px;
+    text-transform: lowercase;
+}
+
+.actions-row {
+    margin-top: 14px;
+}
+
+.verification-result {
+    margin-top: 24px;
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.checks-block,
+.attrs-block {
+    margin-top: 14px;
+}
+
+.attr-item {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.attr-item pre {
+    margin: 8px 0 0 0;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+}
