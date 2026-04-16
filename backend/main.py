@@ -11,6 +11,18 @@ from database import Database, DatabaseRedis
 from pdf_signer import add_signature_to_pdf, validate_signature_params
 import service
 from service import SignatureUNEP
+import logging 
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+                    encoding='utf-8',
+                    handlers=[
+                    logging.FileHandler("../main.py.log", mode='a'), # Лог в файл
+                    logging.StreamHandler()         # Лог в консоль
+                    ])
+
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(message)s",
+                    filename='../main.py.log', filemode='a')
+
 
 
 app = FastAPI(
@@ -46,7 +58,7 @@ def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
         token_redis = db_redis.get_token_by_email(email)
         return token == token_redis
     except Exception as ex:
-        print(f"[ERROR] Exception in check_token_redis: {ex}")
+        logging.exception(f"Exception in check_token_redis: {ex}")
         return False
 
 class oldUser(BaseModel):
@@ -107,7 +119,7 @@ async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)  ):
         user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
         content = user.chek_auth(old_user.password)   
   except Exception as exept:
-    print(f"[ERROR] Ошибка непосредственно в роуте chek_login(): {exept}") 
+    logging.exception(f"Ошибка непосредственно в роуте chek_login(): {exept}") 
   
   return JSONResponse(content=content)
 
@@ -205,7 +217,7 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
            }
        
     except Exception as exept:
-        print(f"[ERROR] Ошибка непосредственно в роуте добавления документа: {exept}") 
+        logging.exception(f"Ошибка непосредственно в роуте добавления документа: {exept}") 
     
     return JSONResponse(content=content)
 
@@ -269,7 +281,7 @@ async def doc_delete(doc_id:int, token: Optional[str] = Header(None), email: Opt
 
     flag = db.delet_document_by_id(doc_id) # id документа, который автоматически выдается в базе данных 
   except Exception as ex:
-    print(f"[ERROR] Ошибка при удалениии документа из БД: {ex}")
+    logging.exception(f"Ошибка при удалениии документа из БД: {ex}")
   
   content = {'status': 0,
              'message': 'Документ успешно удалён!',
@@ -451,7 +463,7 @@ async def sign_document(request: SignatureRequest, token: Optional[str] = Header
         )
         
         if new_doc_id:
-            print(f"[API] Signed document saved successfully with ID: {new_doc_id}")
+            logging.info(f"Signed document saved successfully with ID: {new_doc_id}")
             return JSONResponse(content={
                 "success": True,
                 "message": "Документ успешно подписан и сохранён",
@@ -468,9 +480,7 @@ async def sign_document(request: SignatureRequest, token: Optional[str] = Header
             )
         
     except Exception as ex:
-        print(f"[ERROR] Ошибка при подписании документа: {ex}")
-        import traceback
-        traceback.print_exc()
+        logging.exception(f"Ошибка при подписании документа: {ex}")
         return JSONResponse(
             content={"success": False, "message": str(ex)},
             status_code=500
@@ -501,7 +511,7 @@ async def register_user(user: newUser):
     
     return JSONResponse(content=content)    
   except Exception as ex:
-    print(f"[ERROR] Ошибка непостредственно в роуте register_user", ex)
+    logging.exception(f"Ошибка непостредственно в роуте register_user", ex)
 
 import base64
 from fastapi.responses import Response
@@ -602,7 +612,7 @@ async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str]
         # Нестандартное решение: автоисправление перепутанных местами ключей в БД.
         # В проекте исторически встречался сценарий, когда private/public сохранялись наоборот.
         if private_len == 64 and public_len == 32:
-            print(f"[WARNING] Detected swapped keys for user {email}. Auto-fixing in DB.")
+            logging.warning(f"[WARNING] Detected swapped keys for user {email}. Auto-fixing in DB.")
             private_key_b64, public_key_b64 = public_key_b64, private_key_b64
             db.insert_keys_by_email(email, public_key_b64, private_key_b64)
             private_len = _decode_key_len(private_key_b64)
@@ -610,7 +620,7 @@ async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str]
 
         # Валидный набор: private=32 bytes, public=64 bytes.
         if private_len != 32 or public_len != 64:
-            print(f"[WARNING] Invalid key lengths for user {email}: private={private_len}, public={public_len}. Regenerating keys.")
+            logging.warning(f"[WARNING] Invalid key lengths for user {email}: private={private_len}, public={public_len}. Regenerating keys.")
             generated_keys = signer.generate_user_keys()
             if not generated_keys:
                 return JSONResponse(content={"success": False, "message": "Не удалось сгенерировать ключи"}, status_code=500)
@@ -643,7 +653,7 @@ async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str]
             }, status_code=200)
 
     except Exception as ex:
-        print(f"[ERROR] Ошибка в sign_document_unep: {ex}")
+        logging.exception(f"Ошибка в sign_document_unep: {ex}")
         return JSONResponse(content={"success": False, "message": str(ex)}, status_code=500)
 
 
@@ -682,7 +692,7 @@ async def verify_document_unep(request: SignatureValidationUNEPRequest, token: O
         }, status_code=200)
 
     except Exception as ex:
-        print(f"[ERROR] Ошибка в verify_document_unep: {ex}")
+        logging.exception(f"Ошибка в verify_document_unep: {ex}")
         return JSONResponse(content={
             "success": False,
             "is_valid": False,
@@ -690,8 +700,6 @@ async def verify_document_unep(request: SignatureValidationUNEPRequest, token: O
             "attrs": [],
             "checks": {}
         }, status_code=500)
-
-from datetime import datetime
 
 class User(BaseModel):
     first_name:str
@@ -717,7 +725,7 @@ async def get_user_info(token: Optional[str] = Header(None), email: Optional[str
         return User(**content)
 
     except Exception as ex:
-        print("[ERROR] Ошибка при получении информации о пользователе: ", ex)
+        logging.exception("Ошибка при получении информации о пользователе: ", ex)
         return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error fetching user info"}, status_code=500)
 
 class UserUpdate(BaseModel):
@@ -746,7 +754,7 @@ async def update_user_info(user_update: UserUpdate, token: Optional[str] = Heade
        return JSONResponse(content=content)
 
    except Exception as ex:
-       print("[ERROR] Ошибка при обновлении информации о пользователе: ", ex)
+       logging.exception("Ошибка при обновлении информации о пользователе: ", ex)
        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error updating user info"}, status_code=500)
 
 
@@ -771,7 +779,7 @@ async def send_document_to_external_service(send_info: DocumentToSend, token: Op
             db.insert_doc(document['title'], document['hash'], document['created_at'], document['base64'], send_info.email_to_send)
 
     except Exception as ex:
-        print(f"[ERROR] Ошибка при отправке документа: {ex}")
+        logging.exception(f"Ошибка при отправке документа: {ex}")
         return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error send document"}, status_code=500)
 
        
@@ -800,7 +808,7 @@ async def generate_keys_for_user(token: Optional[str] = Header(None), email: Opt
             }, status_code=200)
 
     except Exception as ex:
-        print(f"[ERROR] Ошибка при генерации ключей для пользователя: {ex}")
+        logging.exception(f"Ошибка при генерации ключей для пользователя: {ex}")
         return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error generating keys"}, status_code=500)
 
 
@@ -896,7 +904,7 @@ async def check_valid_sign(sign:SignatureValidationRequest):
             message="Подпись валидна" if result.get('is_valid', False) else "Подпись невалидна"
         )
     except Exception as ex:
-        print(f"[ERROR] Ошибка в check_valid_sign: {ex}")
+        logging.exception(f"Ошибка в check_valid_sign: {ex}")
         return JSONResponse(content={"is_valid": False, "message": str(ex)}, status_code=500)
 
 

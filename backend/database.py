@@ -4,6 +4,17 @@ import psycopg2.extras
 from config_db import user, host, password, db_name,port
 from hashlib import sha256
 from time import time
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+                    encoding='utf-8',
+                    handlers=[
+                    logging.FileHandler("../database.py.log", mode='a'), # Лог в файл
+                    logging.StreamHandler()         # Лог в консоль
+                    ])
+
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(message)s",
+                    filename='../database.py.log', filemode='a')
 
 
 class Database:
@@ -23,17 +34,17 @@ class Database:
       self.__connection.autocommit = True
       with self.__connection.cursor() as cursor:
         cursor.execute("SELECT version();")
-        print(f"Server version: {cursor.fetchone()}")
-      print("[INFO] Connection to PostgreSQL established")
+        logging.info(f"Server version: {cursor.fetchone()}")
+      logging.info(" Connection to PostgreSQL established")
     except Exception as ex:
-      print(f"[ERROR] Error connecting to database: {ex}")
+      logging.exception(f"Error connecting to database: {ex}")
       
 
   def __del__(self):
     """Закрывает соединение с базой данных"""
     if self.__connection:
       self.__connection.close()
-      print("[INFO] PostgreSQL connection closed")
+      logging.info(" PostgreSQL connection closed")
 
 
   def insert_user(self, login: str, password: str, name:dict | None = None) -> bool:
@@ -62,19 +73,18 @@ class Database:
                 (login, password_hash, name['firstName'], name['lastName'])
           )
         else: 
-          print(f"[INFO] Не валидная структура name: {name}")
+          logging.error(f"Не валидная структура name: {name}")
           return False
         self.__connection.commit()
-        print(f"[INFO] User {login} was successfully inserted")
+        logging.info(f" User {login} was successfully inserted")
         
         return True
       
     except psycopg2.Error as ex:
       if ex.pgcode == errorcodes.UNIQUE_VIOLATION:
-        print(f"[INFO] Email is not originality: {ex}")
-        # нужно следать что то польше, чем строка в консоль, например отправить на API сообщение, о том что это не ошибка бд, а именно проблема уникальности
+        logging.info(f" Email is not originality: {ex}")
       else:
-        print(f'[ERROR] Error in the insert_user: {ex}')
+        logging.exception(f'Error in the insert_user: {ex}')
       
       return False
 
@@ -106,14 +116,12 @@ class Database:
         result = cursor.fetchone()
        
         if result and result[0] == password_hash:
-          print("[INFO] User checked successfully")
+          logging.info(" User checked successfully")
           return SUCCESS_STATUS
       
       return INVALID_CREDENTIALS_STATUS
     except Exception as ex:
-      print("[ERROR] Error in the check_user:", ex)
-      with open("log.txt", "w", encoding="utf-8") as file:
-        file.write("[ERROR] Error in the check_user: " + str(ex) + "\n")
+      logging.exception("Error in the check_user:", ex)
       return DB_CONNECTION_ERROR_STATUS
     
 
@@ -145,9 +153,7 @@ class Database:
         return results
       
     except Exception as ex:
-      print(f"[ERROR] Error in the check_docs: {ex}")
-      with open("log.txt", "a", encoding="utf-8") as file:
-        file.write("[ERROR] Error in the check_docs: " + str(ex) + "\n")
+      logging.exception(f"Error in the check_docs: {ex}")
       return []
     
 
@@ -166,7 +172,7 @@ class Database:
     if not self.__connection:
       raise ConnectionError("No Activate database connection")
     try:
-      print(f'[INFO]\ntitle:{title}\nhash:{hash}\ncreated_at:{created_at}\nbase64:{base64[:64]}...\nlogin:{email}')
+      logging.info(f'\ntitle:{title}\nhash:{hash}\ncreated_at:{created_at}\nbase64:{base64[:64]}...\nlogin:{email}')
       with self.__connection.cursor() as cursor:
         # Параметризованный запрос с подзапросом для получения user_id
         cursor.execute("""
@@ -174,10 +180,10 @@ class Database:
           VALUES (%s, %s, %s, (SELECT id FROM users WHERE email = %s));
         """, (title, hash, base64, email)) 
         self.__connection.commit()
-        print(f"[INFO] Document {title} was successfully inserted")
+        logging.info(f" Document {title} was successfully inserted")
         return True
     except Exception as ex:
-      print("[ERROR] Error in insert_doc:", ex)
+      logging.exception("Error in insert_doc:", ex)
     
     return False
 
@@ -196,10 +202,10 @@ class Database:
         # Параметризованный запрос - безопасен от SQL-инъекций
         cursor.execute("DELETE FROM documents WHERE id = %s;", (id,))
         self.__connection.commit() 
-        print(f"[INFO] Document id: {id}, deleted success")
+        logging.info(f" Document id: {id}, deleted success")
         return True
     except Exception as ex:
-      print("[ERROR] Error in delet_doc:", ex)
+      logging.exception("Error in delet_doc:", ex)
     
     return False
 
@@ -234,14 +240,14 @@ class Database:
         result = cursor.fetchone()
         
         if result:
-          print(f"[INFO] Document id: {doc_id} retrieved successfully")
+          logging.info(f" Document id: {doc_id} retrieved successfully")
           return result
         else:
-          print(f"[ERROR] Document id: {doc_id} not found")
+          logging.error(f"Document id: {doc_id} not found")
           return None
           
     except Exception as ex:
-      print(f"[ERROR] Error in get_document_by_id: {ex}")
+      logging.exception(f"Error in get_document_by_id: {ex}")
       return None
 
 
@@ -266,7 +272,7 @@ class Database:
         self.__connection.commit()
       return result
     except Exception as ex:
-      print("[ERROR] Error in __create_void_signature_rout ", ex)
+      logging.exception("Error in __create_void_signature_rout ", ex)
         
 
 
@@ -293,7 +299,7 @@ class Database:
     if not self.__connection:
       raise ConnectionError("No active database connection")
     try:
-      print(f'[INFO] Inserting signed document: {title}')
+      logging.info(f' Inserting signed document: {title}')
       with self.__connection.cursor() as cursor:
         # Вставляем подписанный документ
         cursor.execute("""
@@ -329,17 +335,17 @@ class Database:
               signature_data.get('width', 0),
               signature_data.get('height', 0)
             ))
-            print(f"[INFO] Signature metadata saved for document {new_doc_id}")
+            logging.info(f" Signature metadata saved for document {new_doc_id}")
           except Exception as sig_ex:
             # Если таблица подписей не существует, просто игнорируем
-            print(f"[WARNING] Could not save signature metadata: {sig_ex}")
+            logging.warning(f"[WARNING] Could not save signature metadata: {sig_ex}")
         
         self.__connection.commit()
-        print(f"[INFO] Signed document {title} was successfully inserted with ID: {new_doc_id}")
+        logging.info(f" Signed document {title} was successfully inserted with ID: {new_doc_id}")
         return new_doc_id
         
     except Exception as ex:
-      print(f"[ERROR] Error in insert_signed_document: {ex}")
+      logging.exception(f"Error in insert_signed_document: {ex}")
       return None
 
 
@@ -370,14 +376,14 @@ class Database:
         result = cursor.fetchone()
         
         if result:
-          print(f"[INFO] User: {email} retrieved successfully")
+          logging.info(f" User: {email} retrieved successfully")
           return dict(result)
         else:
-          print(f"[ERROR] User: {email} not found")
+          logging.error(f"User: {email} not found")
           return None
           
     except Exception as ex:
-      print(f"[ERROR] Error in get_user_by_email: {ex}")
+      logging.exception(f"Error in get_user_by_email: {ex}")
       return None
 
 
@@ -396,10 +402,10 @@ class Database:
             WHERE id = %s;
         """, (new_first_name, new_last_name, id))
         
-      print(f'[INFO] User name {new_first_name} successfulle change')
+      logging.info(f' User name {new_first_name} successfulle change')
           
     except Exception as ex:
-      print(f"[ERROR] Error in change_userName_by_id: {ex}")
+      logging.exception(f"Error in change_userName_by_id: {ex}")
       return None
 
 
@@ -418,10 +424,10 @@ class Database:
           WHERE email = %s;
         """, (public_key, private_key, email))
         self.__connection.commit()
-        print(f'[INFO] Keys for user {email} were successfully inserted')
+        logging.info(f' Keys for user {email} were successfully inserted')
         return True
     except Exception as ex:
-      print(f"[ERROR] Error in insert_keys_by_email: {ex}")
+      logging.exception(f"Error in insert_keys_by_email: {ex}")
       raise Exception("Error in insert_keys_by_email: " + str(ex))
     return False
 
@@ -439,13 +445,13 @@ class Database:
         """, (email,))
         result = cursor.fetchone()
         if result and result[0]:
-          print(f'[INFO] Private key for user {email} retrieved successfully')
+          logging.info(f' Private key for user {email} retrieved successfully')
           return result[0]
         else:
-          print(f'[ERROR] Private key for user {email} not found')
+          logging.error(f'Private key for user {email} not found')
           return None
     except Exception as ex:
-      print(f"[ERROR] Error in get_private_key_by_email: {ex}")
+      logging.exception(f"Error in get_private_key_by_email: {ex}")
       return None
 
   def get_public_key_by_email(self, email:str) -> str | None:
@@ -461,13 +467,13 @@ class Database:
         """, (email,))
         result = cursor.fetchone()
         if result and result[0]:
-          print(f'[INFO] Public key for user {email} retrieved successfully')
+          logging.info(f' Public key for user {email} retrieved successfully')
           return result[0]
         else:
-          print(f'[ERROR] Public key for user {email} not found')
+          logging.error(f'Public key for user {email} not found')
           return None
     except Exception as ex:
-      print(f"[ERROR] Error in get_public_key_by_email: {ex}")
+      logging.exception(f"Error in get_public_key_by_email: {ex}")
       return None
 
 
@@ -490,17 +496,17 @@ class DatabaseRedis:
   def __init__(self):
     try:
       self.r = redis.Redis(host=host_r, port=port_r, decode_responses=True)
-      print("[INFO] Connection to Redis established")
+      logging.info(" Connection to Redis established")
     except Exception as ex:
-      print("[ERROR] Error connecting to Redis:", ex)
+      logging.exception("Error connecting to Redis:", ex)
 
   def __del__(self):
     """Закрывает соединение с Redis"""
     try:
       self.r.close()
-      print("[INFO] Redis __connection closed")
+      logging.info(" Redis __connection closed")
     except Exception as ex:
-      print("[ERROR] Error closing Redis connection:", ex)
+      logging.exception("Error closing Redis connection:", ex)
 
   from pydantic import BaseModel
   class SessionData(BaseModel):
@@ -522,19 +528,19 @@ class DatabaseRedis:
       self.r.setex(f"email_to_token:{email}", expire_seconds, token)
       return True
     except Exception as ex:
-      print("[ERROR] Error in create_session: ", ex)
+      logging.exception("Error in create_session: ", ex)
       return False
 
   def get_token_by_email(self, email:str) -> str | None:
     try:
       return self.r.get(f"email_to_token:{email}")
     except Exception as ex:
-      print("[ERROR] Error in DatabasseRedis.get_token_by_email: ", ex)
+      logging.exception("Error in DatabasseRedis.get_token_by_email: ", ex)
       return None
 
   def __get_email_by_token(self, token:str) -> str | None:
     try:
       return 'admin@gmail.com' 
     except Exception as ex:
-      print("[ERROR] Error in DatabasseRedis.get_email_by_token: ", ex)
+      logging.exception("Error in DatabasseRedis.get_email_by_token: ", ex)
       return None

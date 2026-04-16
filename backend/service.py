@@ -4,6 +4,18 @@ from datetime import datetime, timezone
 import uuid
 import re
 import hashlib
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+                    encoding='utf-8',
+                    handlers=[
+                    logging.FileHandler("../service.py.log", mode='a'), # Лог в файл
+                    logging.StreamHandler()         # Лог в консоль
+                    ])
+
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(message)s",
+                    filename='../service.py.log', filemode='a')
+
 # статусы ответов на фронт:
 SUCCESS_STATUS = 0              # 0 - успешный вход
 INVALID_CREDENTIALS_STATUS = 2  # 2 - логин или пароль не верные или совпадают
@@ -17,8 +29,6 @@ class User:
         self.__db = db
         self.__db_redis = db_redis
 
-        #print("Инициализация User: ", self.__email)
-        # Если флаг установлен, то загружаем данные из PostgreSQL, что бы не делать лишних запросов при каждом действии
         if flag_pg:
             __user = self.__db.get_user_by_email(self.__email)
             self.__id = __user['id']
@@ -35,7 +45,7 @@ class User:
         try: 
             return self.__db_redis.get_token_by_email(self.__email)
         except Exception as ex:
-            print("[ERROR] Exception in __get_token_to_redis: ", ex)
+            logging.exception("Exception in __get_token_to_redis:")
         return None
     
     def get_name(self):
@@ -90,13 +100,13 @@ class User:
             # Сначала пробуем обновить БД
             self.__db.change_userName_by_id(self.__id, formatted_first, formatted_last)
             
-            print(f"[INFO] User {self.__email} name updated in DB: {formatted_first} {formatted_last}")
+            logging.info(f"User {self.__email} name updated in DB: {formatted_first} {formatted_last}")
             # Если БД не упала, обновляем состояние объекта
             self.__first_name = formatted_first
             self.__last_name = formatted_last
             return True
         except Exception as ex:
-            print(f"[ERROR] Database update failed: {ex}")
+            logging.exception("Database update failed:")
             return False
       
 
@@ -109,6 +119,7 @@ class User:
                 case 0:
                     self.__token = str(uuid.uuid4())
                     if self.__db_redis.create_session(self.__email, self.__token):
+                        logging.info(f"User {self.__email} authenticated successfully, session created successfully")
                         self.__session_active = True
                         return {
                         "status" : SUCCESS_STATUS,
@@ -123,6 +134,7 @@ class User:
                         }
                 
                 case 2:
+                    logging.info(f"User {self.__email} failed authentication: invalid credentials")
                     return {
                         "status" : INVALID_CREDENTIALS_STATUS,
                         "token": -1,
@@ -143,7 +155,7 @@ class User:
                     "message": response
                     }
         except Exception as exept:
-            print("[ERROR] Exception in chek_auth: ", exept)
+            logging.exception("Exception in chek_auth:")
             return {
                 "status" : GENERAL_ERROR_STATUS,
                 "token": -1,
@@ -239,7 +251,7 @@ class SignatureUNEP:
             hash_obj = gostcrypto.gosthash.new('streebog256', data=document)
             return hash_obj.digest()
         except Exception as e:
-            print(f"[ERROR] Hashing failed: {e}")
+            logging.exception("Exception in SignatureUNEP.hash_document:")
             return None
 
     def __save_keys_to_db(self, keys: KeyPair) -> bool:
@@ -247,7 +259,7 @@ class SignatureUNEP:
             self.__db.insert_keys_by_email(self.__email, keys.public_key, keys.private_key)
             return True
         except Exception as e:
-            print(f"[ERROR] Saving keys to DB failed: {e}")
+            logging.exception("Exception in SignatureUNEP.__save_keys_to_db:")
             raise ValueError("Ошибка при сохранении ключей в базу данных")
 
     def generate_user_keys(self) -> str | None:
@@ -256,9 +268,9 @@ class SignatureUNEP:
         Ключи сохраняются в формате base64
         """
         try:
-            #if self.__db.get_public_key_by_email(self.__email) is not None:
-            #    print(f"[INFO] User {self.__email} already has keys, skipping generation.")
-            #    return None
+            if self.__db.get_public_key_by_email(self.__email) is not None:
+                logging.warning(f"User {self.__email} already has keys, skipping generation.")
+                return None
             
             q = self.__curve_params['q']
 
@@ -278,15 +290,12 @@ class SignatureUNEP:
             digest_attrs = self.__build_signed_attrs(digest, public_key=public_key)
             digest_attrs_hash = self.hash_document(digest_attrs, encode_flag=False)
 
-            #print(f"[DEBUG] digest_attrs_hash: {digest_attrs_hash}")
-            #print(f"[DEBUG] digest: {digest}")
-
             signature = self.__sign_obj.sign(private_key, digest_attrs_hash)
 
             if not self.__sign_obj.verify(public_key, digest_attrs_hash, signature):
                 raise ValueError("Signature verification failed with generated keys")
 
-            print(f"[INFO] Keys generated successfully for user {self.__email}")
+            logging.info(f"Keys generated successfully for user {self.__email}")
             private_key_b64 = base64.b64encode(private_key).decode()
             public_key_b64 = base64.b64encode(public_key).decode()
 
@@ -294,7 +303,7 @@ class SignatureUNEP:
             
             return  public_key_b64, private_key_b64
         except Exception as e:
-            print(f"[ERROR] Key generation failed: {e}")
+            logging.exception("Exception in SignatureUNEP.generate_user_keys:")
             return None
 
 
@@ -316,7 +325,7 @@ class SignatureUNEP:
             
             signature = self.__sign_obj.sign(bytearray(private_key), signed_attrs_hash)
 
-            print(f"[INFO] Document signed successfully for user {self.__email}")
+            logging.info(f"Document signed successfully for user {self.__email}")
 
 
             return {
@@ -325,7 +334,7 @@ class SignatureUNEP:
                 'content_hash': doc_hash      # на всякий случай
             }
         except Exception as e:
-            print(f"[ERROR] Signing failed: {e}")
+            logging.exception("Exception in SignatureUNEP.signed_hash:")
             raise ValueError("Ошибка при создании подписи")
 
     def verify_signature(self, doc_hash: str, signature: str, public_key: str) -> bool:
@@ -336,7 +345,7 @@ class SignatureUNEP:
         try:
             return self.__sign_obj.verify(base64.b64decode(public_key), doc_hash, signature)
         except Exception as e:
-            print(f"[ERROR] Signature verification failed: {e}")
+            logging.exception("Exception in SignatureUNEP.verify_signature:")
             return False
 
     def __extract_cms_attrs(self, signed_attrs: cms.CMSAttributes) -> list[dict[str, Any]]:
@@ -508,15 +517,6 @@ class SignatureUNEP:
                 sid_match,
             ])
 
-            print("[INFO] Атрибуты CMS подписи:")
-            for idx, attr in enumerate(attrs_list, start=1):
-                print(f"  {idx}. {attr['name']} ({attr['oid']})")
-                for value in attr['values']:
-                    if value['type'] == 'bytes':
-                        print(f"     - bytes.hex: {value['hex']}")
-                    else:
-                        print(f"     - {value['value']}")
-
             result = {
                 'is_valid': is_valid,
                 'checks': {
@@ -537,11 +537,11 @@ class SignatureUNEP:
                 'attrs': attrs_list,
             }
 
-            print(f"[INFO] Итог проверки CMS: is_valid={is_valid}, mode={verification_mode}")
+            logging.info(f"Итог проверки CMS: is_valid={is_valid}, mode={verification_mode}")
             return result
 
         except Exception as e:
-            print(f"[ERROR] CMS verification failed: {e}")
+            logging.exception("Exception in SignatureUNEP.verify_signature:")
             return {
                 'is_valid': False,
                 'checks': {
@@ -631,13 +631,9 @@ class SignatureUNEP:
 
             cms_der = content_info.dump()
 
-            # Сохраняем в файл
-            with open(output_filename, "wb") as f:
-                f.write(cms_der)
-
-            print(f"[INFO] CMS-контейнер успешно создан: {output_filename} ({len(cms_der)} байт)")
+            logging.info(f"CMS-контейнер успешно создан: {output_filename} ({len(cms_der)} байт)")
             return cms_der
 
         except Exception as e:
-            print(f"[ERROR] CMS creation failed: {e}")
+            logging.exception("Exception in SignatureUNEP.create_cms_container:")
             raise ValueError("Ошибка при формировании CMS-контейнера (.sig)") from e
