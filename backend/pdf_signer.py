@@ -9,6 +9,16 @@ import fitz  # PyMuPDF
 import base64
 from io import BytesIO
 from typing import Tuple
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+                    encoding='utf-8',
+                    handlers=[
+                    logging.FileHandler("../pdf_signer.py.log", mode='a'), # Лог в файл
+                    logging.StreamHandler()         # Лог в консоль
+                    ])
+
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(message)s",
+                    filename='../pdf_signer.py.log', filemode='a')
 
 
 def add_signature_to_pdf(
@@ -43,9 +53,6 @@ def add_signature_to_pdf(
         Exception: При ошибках работы с PDF или изображением
     """
     try:
-        print(f"[INFO] Starting PDF signing process...")
-        print(f"[INFO] Page: {page_number}, Position: ({x}, {y}), Size: ({width}x{height})")
-        
         # Очищаем base64 строки от data URI префиксов
         # Пример: "data:application/pdf;base64,..." -> только base64 часть
         if 'base64,' in pdf_base64:
@@ -70,13 +77,12 @@ def add_signature_to_pdf(
         
         # Декодируем изображение подписи из base64
         signature_bytes = base64.b64decode(signature_clean)
-        print(f"[INFO] Signature image decoded, size: {len(signature_bytes)} bytes")
+        logging.info(f"Signature image decoded, size: {len(signature_bytes)} bytes")
         
         # Получаем нужную страницу PDF
         page = pdf_document[page_number]
         page_height = page.rect.height
         page_width = page.rect.width
-        print(f"[INFO] Page dimensions: {page_width}x{page_height}")
         
         # ВАЖНО: Конвертация координат из Canvas в PDF координаты
         # Canvas использует координаты от верхнего левого угла (0,0)
@@ -101,13 +107,11 @@ def add_signature_to_pdf(
             pdf_y + pdf_height          # нижняя граница
         )
         
-        print(f"[INFO] Signature will be placed at PDF rect: {rect}")
-        
         # Вставляем изображение подписи на страницу
         # stream - байты изображения
         # overlay=True - размещаем поверх существующего контента
         page.insert_image(rect, stream=signature_bytes, overlay=True)
-        print(f"[INFO] Signature image inserted successfully")
+        logging.info(f"Signature image inserted successfully")
         
         # Сохраняем измененный PDF в буфер памяти
         output_buffer = BytesIO()
@@ -118,24 +122,20 @@ def add_signature_to_pdf(
             clean=True          # Очистка и оптимизация PDF
         )
         pdf_document.close()
-        print(f"[INFO] PDF document saved and closed")
         
         # Получаем байты из буфера
         output_buffer.seek(0)
         signed_pdf_bytes = output_buffer.read()
-        print(f"[INFO] Signed PDF size: {len(signed_pdf_bytes)} bytes")
         
         # Конвертируем обратно в base64 с data URI префиксом
         signed_pdf_base64 = base64.b64encode(signed_pdf_bytes).decode('utf-8')
         result = f"data:application/pdf;base64,{signed_pdf_base64}"
         
-        print(f"[INFO] PDF signing completed successfully")
+        logging.info(f"PDF signing completed successfully")
         return result, True
         
     except Exception as e:
-        print(f"[ERROR] Error during PDF signing: {e}")
-        import traceback
-        traceback.print_exc()
+        logging.exception(f"[ERROR] Error during PDF signing: {e}")
         return "", False
 
 

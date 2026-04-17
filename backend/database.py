@@ -46,6 +46,28 @@ class Database:
       self.__connection.close()
       logging.info(" PostgreSQL connection closed")
 
+  def is_original_email(self, login: str) -> bool:
+      """
+      Проверяет, свободен ли email в таблице users.
+      Возвращает True, если email уникален (не найден в базе), 
+      и False, если такой пользователь уже существует.
+      """
+      if not self.__connection:
+          raise ConnectionError("No active database connection")
+
+      try:
+          with self.__connection.cursor() as cursor:
+              cursor.execute(
+                  "SELECT 1 FROM users WHERE email = %s LIMIT 1;",
+                  (login,)
+              )
+              result = cursor.fetchone()
+              # Если result равен None, значит записей не найдено -> email оригинален
+              return result is None
+
+      except psycopg2.Error as ex:
+          logging.error(f"Error in Database.is_original_email {login}: {ex}")
+          return False
 
   def insert_user(self, login: str, password: str, name:dict | None = None) -> bool:
     """
@@ -73,16 +95,16 @@ class Database:
                 (login, password_hash, name['firstName'], name['lastName'])
           )
         else: 
-          logging.error(f"Не валидная структура name: {name}")
+          logging.error(f"Invalid name structure: {name}")
           return False
         self.__connection.commit()
-        logging.info(f" User {login} was successfully inserted")
+        logging.info(f"User {login} was successfully inserted")
         
         return True
       
     except psycopg2.Error as ex:
       if ex.pgcode == errorcodes.UNIQUE_VIOLATION:
-        logging.info(f" Email is not originality: {ex}")
+        logging.warning(f"Email is not originality: {ex}")
       else:
         logging.exception(f'Error in the insert_user: {ex}')
       
@@ -116,7 +138,7 @@ class Database:
         result = cursor.fetchone()
        
         if result and result[0] == password_hash:
-          logging.info(" User checked successfully")
+          logging.info("User checked successfully")
           return SUCCESS_STATUS
       
       return INVALID_CREDENTIALS_STATUS

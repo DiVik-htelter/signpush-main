@@ -198,7 +198,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
         INSERT INTO audit_logs (user_id, action_type, description)
-        VALUES (NEW.id, 'user_created', 'Создан новый пользователь: ' || NEW.username);
+        VALUES (NEW.id, 'user_created', 'Создан новый пользователь: ' || NEW.email);
     ELSIF (TG_OP = 'UPDATE') THEN
         INSERT INTO audit_logs (user_id, action_type, description)
         VALUES (NEW.id, 'user_updated', 'Данные пользователя изменены');

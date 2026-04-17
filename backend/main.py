@@ -1,7 +1,8 @@
 import uvicorn
 from time import time
 from hashlib import sha256
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from urllib.parse import urlparse
 from fastapi import FastAPI, BackgroundTasks, Header
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
@@ -218,7 +219,6 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
        
     except Exception as exept:
         logging.exception(f"Ошибка непосредственно в роуте добавления документа: {exept}") 
-    
     return JSONResponse(content=content)
 
 @app.get(
@@ -234,8 +234,6 @@ async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = H
   temp_token = db_redis.get_token_by_email(email)
   if token != temp_token:
       return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
-  # если токен не валиден то логин не найдется, я не знаю нужна ли тут еще какая то проверка
-  
   
   result = db.get_all_list_docs(str(email))
   total = len(result)
@@ -263,7 +261,6 @@ async def get_docs_by_id(doc_id: int, token: Optional[str] = Header(None), email
     return Paper(**result)
   else:
     return JSONResponse(content={"message": "Документ не найден"}, status_code=404)
-
 
 
 @app.delete(
@@ -818,90 +815,293 @@ async def generate_keys_for_user(token: Optional[str] = Header(None), email: Opt
 #-как только пользователь подписывает и нажимает кнопку, документ отправляется обратно на сторонний сервис
 # проверка подписи документа
 
+#class newUser(BaseModel):
+#   email:str
+#   password: str
+#   first_name:str
+#   last_name:str
 
-@app.post("/api/v1/register", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
+@app.post("/api/v1/user/register", tags=["API стороннего сервиса"], summary="Регистрация нового пользователя")
 async def register_user_1c(user:newUser):
-   pass
+    """Регистрация нового пользователя"""
+
+    # нужна предварительная проверка на валидность данных (например, формат почты, спецсимволы в почте и имени)
+
+    if db.is_original_email(user.email) is False:
+        return JSONResponse(content={ "message": "Email already exists"}, status_code=400)
+
+    flag = False
+    try:
+        name = {
+            'firstName': user.first_name,
+            'lastName': user.last_name,
+        }
+        flag = db.insert_user(user.email, user.password, name)
+        if flag:
+            content = {'status': service.SUCCESS_STATUS,
+                'message': 'Успешная регистрация!'}
+        else:
+            content = JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, 'message': 'Ошибка регистрации пользователя'}, status_code=400)
+
+        return content    
+    except Exception as ex:
+        logging.exception(f"Error in register_user", ex)
 
 
-class DocumentSome(Paper):
-   endpoint: str = Field(..., description="Адрес возврата подписанного документа ", json_schema_extra={"example": "http://api/1C/somebody"} ) 
-   deadlite_at: int = Field(..., description="Крайний срок подписи документа документа (Unix timestamp в секундах)", json_schema_extra={"example": 1704067200})
-   
 
-@app.post("/api/v1/document/insert", tags=["API стороннего сервиса"], summary="ОТправка документа для подписания")
-async def insert_doc_1c(document:DocumentSome):
-   pass
+class DocumentSome(BaseModel):
+   endpoint: str = Field(..., description="Адрес callback для возврата подписанного документа", json_schema_extra={"example": "https://api.example.com/sign/callback"})
+   deadlite_at: int = Field(..., description="Крайний срок подписи документа (Unix timestamp в секундах)", json_schema_extra={"example": 1704067200})
+   document: Paper = Field(..., description="Документ для подписи в формате Paper")
 
 
+class ExternalDocumentRegisterResponse(BaseModel):
+    success: bool = Field(..., description="Результат регистрации документа")
+    message: str = Field(..., description="Описание результата")
+    document_id: Optional[int] = Field(None, description="ID документа в нашей БД")
+    endpoint: Optional[str] = Field(None, description="Адрес callback для возврата результата")
+    signature_type: Optional[str] = Field(None, description="Тип подписи: unep | img")
 
 
+# In-memory реестр callback-адресов по документам.
+# Нужен для простого сценария интеграции, когда внешний сервис присылает endpoint
+# на этапе постановки документа на подпись, а затем вызывает webhook без callback_url.
+EXTERNAL_CALLBACK_REGISTRY: Dict[int, Dict[str, Any]] = {}
+
+
+def _is_valid_http_url(url: str) -> bool:
+    """Проверяет, что URL валиден и использует схему http/https."""
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+def _resolve_inserted_doc_id(email: str, title: str, hash_value: str) -> Optional[int]:
+    """Пытается найти только что вставленный документ по email/title/hash."""
+    docs = db.get_all_list_docs(email)
+    for item in docs:
+        if item.get('title') == title and item.get('hash') == hash_value:
+            return item.get('id')
+    return None
+
+
+def _register_external_document(document: DocumentSome, signature_type: str) -> JSONResponse:
+    """
+    Общая логика приема документа от внешнего сервиса:
+    1) проверяет callback URL,
+    2) проверяет получателя,
+    3) валидирует hash документа,
+    4) сохраняет документ в БД,
+    5) запоминает callback для будущего webhook.
+    """
+    if not _is_valid_http_url(document.endpoint):
+        return JSONResponse(
+            content={"success": False, "message": "Некорректный endpoint. Используйте http/https URL"},
+            status_code=400
+        )
+
+    if db.get_user_by_email(document.document.email) is None:
+        return JSONResponse(
+            content={"success": False, "message": "Пользователь-подписант не найден"},
+            status_code=404
+        )
+
+    # Проверяем целостность: внешний сервис должен передавать корректный sha256 от base64 payload.
+    clean_payload = _normalize_base64_payload(document.document.base64)
+    expected_hash = sha256(clean_payload.encode()).hexdigest()
+    if document.document.hash != expected_hash:
+        return JSONResponse(
+            content={
+                "success": False,
+                "message": "Hash документа не совпадает с содержимым base64",
+                "expected_hash": expected_hash
+            },
+            status_code=400
+        )
+
+    inserted = db.insert_doc(
+        document.document.title,
+        document.document.hash,
+        document.document.created_at,
+        document.document.base64,
+        document.document.email,
+    )
+    if not inserted:
+        return JSONResponse(
+            content={"success": False, "message": "Не удалось сохранить документ"},
+            status_code=500
+        )
+
+    new_doc_id = _resolve_inserted_doc_id(
+        email=document.document.email,
+        title=document.document.title,
+        hash_value=document.document.hash,
+    )
+    if not new_doc_id:
+        return JSONResponse(
+            content={"success": False, "message": "Документ сохранен, но не удалось определить его ID"},
+            status_code=500
+        )
+
+    EXTERNAL_CALLBACK_REGISTRY[new_doc_id] = {
+        "endpoint": document.endpoint,
+        "deadline_at": document.deadlite_at,
+        "signature_type": signature_type,
+    }
+
+    return JSONResponse(content={
+        "success": True,
+        "message": "Документ принят и поставлен в очередь на подпись",
+        "document_id": new_doc_id,
+        "endpoint": document.endpoint,
+        "signature_type": signature_type,
+    }, status_code=201)
+
+
+@app.post(
+    "/api/v1/document/sign/unep",
+    tags=["API стороннего сервиса"],
+    summary="Отправка документа для подписания УНЭП",
+    response_model=ExternalDocumentRegisterResponse
+)
+async def sign_document_unep_external(document: DocumentSome):
+   """Принимает от внешнего сервиса документ на подписание УНЭП пользователем платформы."""
+   return _register_external_document(document, signature_type="unep")
+
+
+@app.post(
+    "/api/v1/document/sign/img",
+    tags=["API стороннего сервиса"],
+    summary="Отправка документа для подписания графической подписью",
+    response_model=ExternalDocumentRegisterResponse
+)
+async def sign_document_img_external(document: DocumentSome):
+   """Принимает от внешнего сервиса документ на подписание графической подписью."""
+   return _register_external_document(document, signature_type="img")
+
+
+
+# Здесь так же нужно реализовать механизм, который будет возвращать на стороний сервис документ в base64 и подпись унэп либо графическую
 class ResponseDoc(BaseModel):
     document: Paper = Field(..., description="Подписанный документ в формате Paper")
-    signatureIMG: SignatureRequest = Field(..., description="Подпись документа") # Графическаая
-    signatureUNEP: str = Field(..., description="Подпись документа в формате УНЭП") 
-    public_key: str = Field(..., description="Публичный ключ")
+    signatureIMG: Optional[dict] = Field(None, description="Данные графической подписи (если применимо)")
+    signatureUNEP: Optional[str] = Field(None, description="Подпись документа в формате УНЭП (base64)")
+    public_key: Optional[str] = Field(None, description="Публичный ключ подписанта (base64)")
 
 import httpx
 async def send_signed_doc(callback_url:str, data:ResponseDoc):
-   """Отправляет подписаный пользователем пдокумент обратно на 1С"""
-   pass
+    """Отправляет подписанный пользователем документ обратно на внешний сервис."""
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(callback_url, json=data.model_dump())
+            if response.status_code >= 400:
+                logging.warning(f"Callback returned HTTP {response.status_code}: {response.text}")
+            else:
+                logging.info(f"Signed document delivered to callback: {callback_url}")
+    except Exception as ex:
+        logging.exception(f"Ошибка отправки подписанного документа на callback: {ex}")
+
+
+class ReturnDocWebhookRequest(BaseModel):
+     document_id: int = Field(..., description="ID подписанного документа в нашей БД", gt=0)
+     callback_url: Optional[str] = Field(None, description="URL для callback. Если не указан — берется из реестра при постановке на подпись")
+     signatureIMG: Optional[dict] = Field(None, description="Данные графической подписи, если документ подписан графически")
+     signatureUNEP: Optional[str] = Field(None, description="CMS подпись УНЭП в base64, если документ подписан УНЭП")
+     public_key: Optional[str] = Field(None, description="Публичный ключ подписанта в base64")
 
 
 
 # Эндпоинт чисто запускает задачу на отправку документа на 1С
-@app.post("/api/v1/webhook", tags=["API стороннего сервиса"], summary="Возврат подписанного документа на сторонний сервис")
+@app.post("/api/v1/document/webhook", tags=["API стороннего сервиса"], summary="Возврат подписанного документа на сторонний сервис")
 async def return_doc_to_1c(
-   callback_url:str,
+   request: ReturnDocWebhookRequest,
    background_tasks: BackgroundTasks
 ):
     """Этот эндпоинт будет вызываться после подписания документа пользователем. Он принимает URL для обратного вызова (callback_url) и использует BackgroundTasks для отправки подписанного документа на указанный URL без блокировки основного потока."""
-    if not callback_url.startswith("http"):
+    callback_url = request.callback_url
+    if not callback_url:
+        callback_url = EXTERNAL_CALLBACK_REGISTRY.get(request.document_id, {}).get('endpoint')
+
+    if not callback_url or not _is_valid_http_url(callback_url):
         return JSONResponse(content={"success": False, "message": "Invalid callback URL"}, status_code=400)
 
-    signed_data = ResponseDoc( # тут должно быть получение данных подписи и документа из бд
-        document=Paper(
-            filename="signed_report.pdf",
-            content_base64="JVBERi0xLjQKJ..." # Пример контента
-        ),
-        signatureIMG=SignatureRequest(),
-        signatureUNEP="MEUCIQDT...",
-        public_key="-----BEGIN PUBLIC KEY-----..."
+    doc = db.get_document_by_id(request.document_id)
+    if not doc:
+        return JSONResponse(content={"success": False, "message": "Документ не найден"}, status_code=404)
+
+    # Формируем payload callback из реальных данных документа.
+    signed_data = ResponseDoc(
+        document=Paper(**doc),
+        signatureIMG=request.signatureIMG,
+        signatureUNEP=request.signatureUNEP,
+        public_key=request.public_key,
     )
     background_tasks.add_task(send_signed_doc, callback_url, signed_data)
     return JSONResponse(content={"success": True, "message": "Signed document will be sent shortly"}, status_code=200)
 
 
 class SignatureValidationRequest(BaseModel):
-   base64:str = Field(..., description="Подпись документа в формате Base64" )
-   email:str = Field(..., description="Email пользователя, который подписал документ" )
-   document_id: int = Field(..., description="ID подписанного документа" )
-   endpoint: str = Field(..., description="Адрес возврата ", json_schema_extra={"example": "http://api/1C/somebody"} )
+    base64:str = Field(..., description="Подпись документа в формате Base64" )
+    email:str = Field(..., description="Email пользователя, который подписал документ" )
+    document_id: Optional[int] = Field(None, description="ID подписанного документа (если документ уже есть в БД)")
+    document: Optional[Paper] = Field(None, description="Оригинальный документ в формате Paper, если его нет в БД")
+    endpoint: Optional[str] = Field(None, description="Необязательный callback URL для дублирования результата проверки")
 
 class SignatureValidationResponse(BaseModel):
     is_valid: bool = Field(..., description="Результат проверки подписи", json_schema_extra={"example": True})
     message: str = Field(..., description="Описание результата проверки")
 
 
-@app.get("/api/v1/sign-verification", tags=["API стороннего сервиса"], summary="Проверка валидности подписи УНЭП", response_model=SignatureValidationResponse)
+@app.post("/api/v1/document/verify/unep", tags=["API стороннего сервиса"], summary="Проверка валидности подписи УНЭП", response_model=SignatureValidationResponse)
 async def check_valid_sign(sign:SignatureValidationRequest):
+    """Проверяет валидность унэп подписи"""
+# со стороннего сервиса может прийти запрос на проверку подписи документа 
+# который уже есть в базе данных(по id) или они могут прислать этот документ, 
+# нужно реализовать возможность выбора
     try:
         signer = SignatureUNEP(sign.email, db)
-        doc = db.get_document_by_id(sign.document_id)
 
-        if not doc:
-            return JSONResponse(content={"is_valid": False, "message": "Документ не найден"}, status_code=404)
+        # Поддерживаем оба сценария:
+        # 1) проверка по документу из БД (document_id),
+        # 2) проверка по документу из тела запроса (document).
+        if sign.document is not None:
+            signed_document_payload = _normalize_base64_payload(sign.document.base64)
+        elif sign.document_id is not None:
+            doc = db.get_document_by_id(sign.document_id)
+            if not doc:
+                return JSONResponse(content={"is_valid": False, "message": "Документ не найден"}, status_code=404)
+            signed_document_payload = _normalize_base64_payload(doc['base64'])
+        else:
+            return JSONResponse(
+                content={"is_valid": False, "message": "Передайте document_id или document"},
+                status_code=400
+            )
 
         result = signer.verify_cms_container(
              cms_signature_bytes=base64.b64decode(_normalize_base64_payload(sign.base64)),
-             signed_document=_normalize_base64_payload(doc['base64']),
+             signed_document=signed_document_payload,
                public_key_b64=None,
                allow_db_fallback=False,
         )
 
+        response_payload = {
+            "is_valid": result.get('is_valid', False),
+            "message": "Подпись валидна" if result.get('is_valid', False) else "Подпись невалидна"
+        }
+
+        # Если внешний сервис передал endpoint, дублируем туда итог проверки.
+        if sign.endpoint and _is_valid_http_url(sign.endpoint):
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    await client.post(sign.endpoint, json=response_payload)
+            except Exception as callback_ex:
+                logging.warning(f"Не удалось отправить результат проверки на endpoint: {callback_ex}")
+
         return SignatureValidationResponse(
-            is_valid=result.get('is_valid', False),
-            message="Подпись валидна" if result.get('is_valid', False) else "Подпись невалидна"
+            is_valid=response_payload['is_valid'],
+            message=response_payload['message']
         )
     except Exception as ex:
         logging.exception(f"Ошибка в check_valid_sign: {ex}")
