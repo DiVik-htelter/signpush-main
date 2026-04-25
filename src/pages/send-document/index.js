@@ -19,7 +19,7 @@ function SendDocument() {
     const [showModal, setShowModal] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState(null);
 
-    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs';
+    const DOCUMENTS_URL = 'docs';
 
     // Загрузка документов пользователя при монтировании компонента
 

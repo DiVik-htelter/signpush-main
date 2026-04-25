@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
     
     is_email_verified BOOLEAN DEFAULT false,
     
+    certificate_serial_number TEXT,
+    certificate_data TEXT,
     private_key TEXT,
     public_key TEXT
     

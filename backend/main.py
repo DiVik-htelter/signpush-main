@@ -37,7 +37,10 @@ db = Database()
 db_redis = DatabaseRedis()
 
 # Разрешенные источники
+# docker 
 origins = [
+    "http://localhost",      # Доступ через Nginx (стандартный порт 80)
+    "http://127.0.0.1",
     "http://localhost:3000",
     "http://localhost:8000"
 ]
@@ -98,7 +101,7 @@ class AuthResponse(BaseModel):
 
 
 @app.post("/api/auth", response_model=AuthResponse, summary="Аутентификация пользователя", tags=["Аутентификация"])
-async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)  ):
+async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)):
   """
   Проверка учетных данных и выдача токена аутентификации
   

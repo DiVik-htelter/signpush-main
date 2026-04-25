@@ -27,7 +27,7 @@ function Index() {
     const [currentPage, setCurrentPage] = useState(0);
     const [documentType, setDocumentType] = useState('Все документы');
 
-    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs';
+    const DOCUMENTS_URL = 'docs';
     const offset = 10;
     const VIEWER_ANIMATION_MS = 300;
 
@@ -170,7 +170,7 @@ function Index() {
     
         try {
             const response = await axios.get(
-                `http://127.0.0.1:8000/api/docs/download/`,
+                `docs/download/`,
                 { 
                     params: { doc_id: doc.id },
                     responseType: 'blob', // КРИТИЧНО: указываем, что ждем бинарные данные

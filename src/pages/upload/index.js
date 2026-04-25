@@ -16,7 +16,7 @@ function Upload() {
     const [alertType, setAlertType] = useState('');
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
-    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs/download';
+    const DOCUMENTS_URL = 'docs/download';
 
     const handleFileChange = async (event) => {
         const files = event.currentTarget.files;

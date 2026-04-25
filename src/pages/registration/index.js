@@ -15,7 +15,7 @@ function Registration() {
   const [isRegistering, setIsRegistering] = useState(false);
 
   const navigate = useNavigate();
-  const REGISTRATION_URL = 'http://127.0.0.1:8000/api/register/';
+  const REGISTRATION_URL = 'register/';
 
   const handleSubmit = async (e) => {
     let response;

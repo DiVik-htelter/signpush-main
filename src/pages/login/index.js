@@ -22,7 +22,7 @@ function Login() {
     const navigate = useNavigate();
     const location = useLocation()
     const from = location.state?.from?.pathname || '/';
-    const LOGIN_URL = 'http://127.0.0.1:8000/api/auth/'; // адрес, куда пойдет запрос на проверку
+    const LOGIN_URL = 'auth/'; // адрес, куда пойдет запрос на проверку
 
     const handleSubmit = async (e) => {
         let response;
