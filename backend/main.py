@@ -55,12 +55,26 @@ app.add_middleware(
 )
 newToken = None
 
+def check_access_token(token:str):
+    try:
+        data = service.User.decoded_jwt(token)
+        if data is not None:
+            return data.get("name")
+        return None
+    except Exception as ex:
+        logging.exception("Exception in check_access_token:")
+
+
 
 def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
     """Сопоставляет токен из запроса с токеном, хранящимся в Redis для данного email. Возвращает True, если токены совпадают, иначе False."""
     try:
-        token_redis = db_redis.get_token_by_email(email)
-        return token == token_redis
+        data = service.User.decoded_jwt(token)
+        if data is None:
+            logging.warning("Invalid token: unable to extract email")
+            return data
+
+        return email
     except Exception as ex:
         logging.exception(f"Exception in check_token_redis: {ex}")
         return False
@@ -101,7 +115,7 @@ class AuthResponse(BaseModel):
 
 
 @app.post("/api/auth", response_model=AuthResponse, summary="Аутентификация пользователя", tags=["Аутентификация"])
-async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)):
+async def chek_login(old_user: oldUser):
   """
   Проверка учетных данных и выдача токена аутентификации
   
@@ -111,20 +125,11 @@ async def chek_login(old_user: oldUser, token: Optional[str] = Header(None)):
   - 3: Ошибка подключения к базе данных
   """
   try:
-    content = None
-    token_redis = db_redis.get_token_by_email(old_user.mail)
-    if token == token_redis:
-        content = {
-            'status': service.SUCCESS_STATUS,
-            'token': token,
-            'message': 'Добро пожаловать!'
-        }
-    else:
-        user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
-        content = user.chek_auth(old_user.password)   
+    user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
+    content = user.chek_auth(old_user.password)   
+
   except Exception as exept:
     logging.exception(f"Ошибка непосредственно в роуте chek_login(): {exept}") 
-  
   return JSONResponse(content=content)
 
 
@@ -206,20 +211,15 @@ class PapersResponse(BaseModel):
 
 @app.post("/api/docs/download", tags=["Документы"], summary="Загрузка документа в бд")
 async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):    
+    
+    if not check_token_redis(db_redis, token, paper.email):
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+
     try:
-        if token == db_redis.get_token_by_email(paper.email):
-            flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
-        
-            content = { 
-            "success": flag
-            }
-        else: 
-           content = {
-            "success": False,
-            "message": "Invalid token",
-            'navigate': '/login'
-           }
-       
+        flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
+        content = { 
+        "success": flag
+        }
     except Exception as exept:
         logging.exception(f"Ошибка непосредственно в роуте добавления документа: {exept}") 
     return JSONResponse(content=content)
@@ -234,9 +234,8 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
 async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
   """Получение списка документов по логину""" 
 
-  temp_token = db_redis.get_token_by_email(email)
-  if token != temp_token:
-      return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)  
+  if not check_token_redis(db_redis, token, email):
+    return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
   
   result = db.get_all_list_docs(str(email))
   total = len(result)

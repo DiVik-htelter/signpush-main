@@ -133,11 +133,9 @@ class Database:
         
     try:
       with self.__connection.cursor() as cursor:
-        # Параметризованный запрос - безопасен от SQL-инъекций
-        cursor.execute("SELECT password_hash FROM users WHERE email = %s;", (email,))
+        cursor.execute("SELECT password_hash, is_active FROM users WHERE email = %s;", (email,))
         result = cursor.fetchone()
-       
-        if result and result[0] == password_hash:
+        if result and result[0] == password_hash and result[1]:  # Проверяем, что пользователь активен
           logging.info("User checked successfully")
           return SUCCESS_STATUS
       
@@ -537,32 +535,67 @@ class DatabaseRedis:
       created_at: int
       expire_seconds: int
 
-  def create_session(self, email: str, token:str, expire_seconds: int = 3600) -> bool: # 1 час
+  #def create_session(self, email: str, token:str, expire_seconds: int = 3600) -> bool: # 1 час
 
-    session_data = {    
-        "email": email,
-        "token": token,
-        "created_at": datetime.datetime.now().timestamp(), 
-        "expire_seconds": expire_seconds
-    }
+  #  session_data = {    
+  #      "email": email,
+  #      "token": token,
+  #      "created_at": datetime.datetime.now().timestamp(), 
+  #      "expire_seconds": expire_seconds
+  #  }
+  #  try:
+  #    self.r.setex(f"session:{token}", expire_seconds, json.dumps(session_data))
+  #    self.r.setex(f"email_to_token:{email}", expire_seconds, token)
+  #    return True
+  #  except Exception as ex:
+  #    logging.exception("Error in create_session: ", ex)
+  #    return False
+
+  def save_refresh_token(self, email:str, refresh_token:str, expire_seconds: int = 7*24*3600) -> bool: # 7 дней
     try:
-      self.r.setex(f"session:{token}", expire_seconds, json.dumps(session_data))
-      self.r.setex(f"email_to_token:{email}", expire_seconds, token)
+      token_data = {
+        "email": email,
+        "refresh_token": refresh_token
+      }
+      self.r.setex(f"refresh_token:{email}", expire_seconds, json.dumps(token_data))
+      logging.info(f" Refresh token for user {email} saved successfully")
       return True
     except Exception as ex:
-      logging.exception("Error in create_session: ", ex)
+      logging.exception("Error in save_refresh_token: ", ex)
       return False
 
-  def get_token_by_email(self, email:str) -> str | None:
+  def check_refresh_token(self, email:str, refresh_token:str) -> bool:
+    """Проверяет валидность refresh токена для данного email"""
     try:
-      return self.r.get(f"email_to_token:{email}")
-    except Exception as ex:
-      logging.exception("Error in DatabasseRedis.get_token_by_email: ", ex)
-      return None
+      token_data_json = self.r.get(f"refresh_token:{email}")
+      if token_data_json:
+        token_data = json.loads(token_data_json)
+        if token_data.get("refresh_token") == refresh_token:
+          logging.info(f" Refresh token for user {email} is valid")
 
-  def __get_email_by_token(self, token:str) -> str | None:
-    try:
-      return 'admin@gmail.com' 
+          # нужно ли перевыпускать токен? механизм Refresh Token Rotation
+
+          return True
+      logging.warning(f" Refresh token for user {email} is invalid or expired")
+      return False
     except Exception as ex:
-      logging.exception("Error in DatabasseRedis.get_email_by_token: ", ex)
-      return None
+      logging.exception("Error in check_refresh_token: ", ex)
+      return False
+
+  def delete_refresh_token(self, email:str) -> bool:
+    """Удаляет refresh токен"""
+    try:
+      self.r.delete(f"refresh_token:{email}")
+      logging.info(f" Refresh token for user {email} has been deleted")
+      return True
+    except Exception as ex:
+      logging.exception("Error in delete_refresh_token: ", ex)
+      return False
+
+  #def get_token_by_email(self, email:str) -> str | None:
+  #  try:
+  #    return self.r.get(f"email_to_token:{email}")
+  #  except Exception as ex:
+  #    logging.exception("Error in DatabasseRedis.get_token_by_email: ", ex)
+  #    return None
+

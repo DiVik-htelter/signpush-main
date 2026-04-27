@@ -5,6 +5,8 @@ import uuid
 import re
 import hashlib
 import logging
+import jwt
+from config_db import SECRET_KEY
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     encoding='utf-8',
@@ -37,22 +39,8 @@ class User:
             self.__is_email_verified = __user['is_email_verified']
             self.__created_at = __user['created_at']
 
-        self.__token = self.__get_token_to_redis()
-        self.__session_active = bool(self.__token)
 
-
-    def __get_token_to_redis(self) -> str | None: 
-        try: 
-            return self.__db_redis.get_token_by_email(self.__email)
-        except Exception as ex:
-            logging.exception("Exception in __get_token_to_redis:")
-        return None
-    
     def get_name(self):
-        """ 
-        Returns:
-            first_name, last_name
-        """
         return self.__first_name, self.__last_name
   
     def get_email(self) -> str:
@@ -108,31 +96,78 @@ class User:
         except Exception as ex:
             logging.exception("Database update failed:")
             return False
-      
+
+    def __create_jwt(self, id:str) -> str | None: 
+        """Метод для генерации JWT токена """
+        try:
+            time_now = datetime.now(timezone.utc).timestamp()
+            payload = {
+                "sub": str(id),
+                "name": self.__email,
+                "iat": time_now, # iat - время создания токена
+                "exp": time_now + 600 # exp - время истечения токена
+            }
+
+            # Создание токена (по умолчанию алгоритм HS256)
+            token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+            logging.info(f"JWT token created")
+            return token
+        except Exception as ex:
+            logging.exception("Exception in create_jwt:")
+        return None
+
+    @staticmethod
+    def decoded_jwt(token: str) -> dict | None:
+        """Метод для декодирования JWT токена"""
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            logging.info(f"JWT token decoded successfully")
+            return decoded
+        except jwt.ExpiredSignatureError as ex:
+            logging.warning(f"JWT token has expired")
+        except jwt.InvalidSignatureError as ex:
+            logging.error(f"Invalid JWT signature")
+        except Exception as ex:
+            logging.exception("Exception in decoded_jwt:")
+        return None
+
+            
+
+    def __create_refresh_token(self) -> str | None:
+        """Метод для генерации refresh токена и сохранения его в Redis"""
+        try:
+            refresh_token = str(uuid.uuid4())
+            self.__db_redis.save_refresh_token(self.__email, refresh_token)  # 7 дней
+            logging.info(f"Refresh token created and saved for user {self.__email}")
+            return refresh_token
+        except Exception as ex:
+            logging.exception("Exception in create_refresh_token:")
+        return None
+
 
     def chek_auth(self, password:str):
         """Метод проверяет авторизацию и генерирует ответ на фронт"""
         try:
             response = self.__db.check_user(self.__email, password)
-
             match response:
                 case 0:
-                    self.__token = str(uuid.uuid4())
-                    if self.__db_redis.create_session(self.__email, self.__token):
-                        logging.info(f"User {self.__email} authenticated successfully, session created successfully")
-                        self.__session_active = True
+                    id_user = self.__db.get_user_by_email(self.__email)['id']
+                    access_token = self.__create_jwt(id_user)
+                    refresh_token = self.__create_refresh_token()
+                    if access_token is None or refresh_token is None:
+                        logging.error(f"Token generation failed for user {self.__email}")
                         return {
-                        "status" : SUCCESS_STATUS,
-                        "token": self.__token,
-                        "message": "Успешный вход!"
-                        }
+                            "status" : GENERAL_ERROR_STATUS,
+                            "token": -1,
+                            "message": "Ошибка при генерации токенов."
+                            }
                     else:
                         return {
-                        "status" : DB_CONNECTION_ERROR_STATUS,
-                        "token": -1,
-                        "message": "Проблемы с созданием сессии."
-                        }
-                
+                            "status" : SUCCESS_STATUS,
+                            "token": access_token,
+                            "refresh_token": refresh_token, 
+                            "message": "Успешный вход!"
+                            }        
                 case 2:
                     logging.info(f"User {self.__email} failed authentication: invalid credentials")
                     return {
