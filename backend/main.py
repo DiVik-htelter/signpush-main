@@ -53,18 +53,6 @@ app.add_middleware(
     allow_methods=["*"],    # Разрешить все методы (GET, POST, etc.)
     allow_headers=["*"],    # Разрешить все заголовки
 )
-newToken = None
-
-def check_access_token(token:str):
-    try:
-        data = service.User.decoded_jwt(token)
-        if data is not None:
-            return data.get("name")
-        return None
-    except Exception as ex:
-        logging.exception("Exception in check_access_token:")
-
-
 
 def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
     """Сопоставляет токен из запроса с токеном, хранящимся в Redis для данного email. Возвращает True, если токены совпадают, иначе False."""
@@ -127,7 +115,9 @@ async def chek_login(old_user: oldUser):
   try:
     user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
     content = user.chek_auth(old_user.password)   
-
+    header = {
+        "Set-Cookie": "token=your_jwt_token; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600"
+    }
   except Exception as exept:
     logging.exception(f"Ошибка непосредственно в роуте chek_login(): {exept}") 
   return JSONResponse(content=content)

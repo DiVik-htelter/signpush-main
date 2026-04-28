@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Автоматический накат твоей схемы при первом запуске:
-      - ./backend/create_full_bd_xray.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backend/full_dump.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s

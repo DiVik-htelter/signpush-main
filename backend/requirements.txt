@@ -38,3 +38,5 @@ gostcrypto==1.2.5
 
 # asn1crypto - сборка/разбор CMS(PKCS#7) контейнеров подписи
 asn1crypto==1.5.1
+
+PyJWT[crypto]==2.12.1
