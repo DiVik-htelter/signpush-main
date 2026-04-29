@@ -1,4 +1,6 @@
+import base64
 import uvicorn
+import logging 
 from time import time
 from hashlib import sha256
 from typing import List, Optional, Dict, Any
@@ -7,12 +9,12 @@ from fastapi import FastAPI, BackgroundTasks, Header
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from database import Database, DatabaseRedis
 from pdf_signer import add_signature_to_pdf, validate_signature_params
 import service
 from service import SignatureUNEP
-import logging 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     encoding='utf-8',
@@ -23,8 +25,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(message)s",
                     filename='../main.py.log', filemode='a')
-
-
 
 app = FastAPI(
     title="SignPush API",
@@ -54,7 +54,7 @@ app.add_middleware(
     allow_headers=["*"],    # Разрешить все заголовки
 )
 
-def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
+def check_token(token:str) -> bool:
     """Сопоставляет токен из запроса с токеном, хранящимся в Redis для данного email. Возвращает True, если токены совпадают, иначе False."""
     try:
         data = service.User.decoded_jwt(token)
@@ -62,9 +62,9 @@ def check_token_redis(db_redis: DatabaseRedis, token:str, email:str) -> bool:
             logging.warning("Invalid token: unable to extract email")
             return data
 
-        return email
+        return data['name']
     except Exception as ex:
-        logging.exception(f"Exception in check_token_redis: {ex}")
+        logging.exception(f"Exception in check_token: {ex}")
         return False
 
 class oldUser(BaseModel):
@@ -202,7 +202,8 @@ class PapersResponse(BaseModel):
 @app.post("/api/docs/download", tags=["Документы"], summary="Загрузка документа в бд")
 async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):    
     
-    if not check_token_redis(db_redis, token, paper.email):
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
@@ -213,7 +214,7 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
     except Exception as exept:
         logging.exception(f"Ошибка непосредственно в роуте добавления документа: {exept}") 
     return JSONResponse(content=content)
-
+ 
 @app.get(
     "/api/docs", 
     response_model=PapersResponse,
@@ -221,19 +222,19 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
     tags=["Документы"],
     description="Получить список всех документов пользователя по его email адресу"
 )
-async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-  """Получение списка документов по логину""" 
+async def get_docs(token: Optional[str] = Header(None)):
+    """Получение списка документов по логину"""
+    email = check_token(token)
+    if not email:
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+    
+    result = db.get_all_list_docs(str(email))
+    total = len(result)
+    message =f"There are {total} paperes"
 
-  if not check_token_redis(db_redis, token, email):
-    return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
-  
-  result = db.get_all_list_docs(str(email))
-  total = len(result)
-  message =f"There are {total} paperes"
+    papers_list = [PaperList(**doc) for doc in result]
 
-  papers_list = [PaperList(**doc) for doc in result]
-
-  return PapersResponse(message=message, papers=papers_list)
+    return PapersResponse(message=message, papers=papers_list)
 
 @app.patch( 
       "/api/docs",
@@ -242,17 +243,17 @@ async def get_docs(token: Optional[str] = Header(None), email: Optional[str] = H
         tags=["Документы"],
         description="Получить документ по его уникальному идентификатору (ID)"
 )
-async def get_docs_by_id(doc_id: int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-  """Получение документа по ID""" 
+async def get_docs_by_id(doc_id: int, token: Optional[str] = Header(None) ):
+    """Получение документа по ID""" 
+    email = check_token(token) 
+    if not email:
+        return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
-  if not check_token_redis(db_redis, token, email):
-    return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
-
-  result = db.get_document_by_id(doc_id)
-  if result:
-    return Paper(**result)
-  else:
-    return JSONResponse(content={"message": "Документ не найден"}, status_code=404)
+    result = db.get_document_by_id(doc_id)
+    if result:
+        return Paper(**result)
+    else:
+        return JSONResponse(content={"message": "Документ не найден"}, status_code=404)
 
 
 @app.delete(
@@ -261,11 +262,12 @@ async def get_docs_by_id(doc_id: int, token: Optional[str] = Header(None), email
         summary="Удаление документа по ID",
         description="Удалить документ по его уникальному идентификатору (ID)"
 )
-async def doc_delete(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+async def doc_delete(doc_id:int, token: Optional[str] = Header(None) ):
   """Удаление документа по ID"""
   flag = False
   try:
-    if not check_token_redis(db_redis, token, email):
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     flag = db.delet_document_by_id(doc_id) # id документа, который автоматически выдается в базе данных 
@@ -354,7 +356,6 @@ class SignDocumentResponse(BaseModel):
         json_schema_extra={"example": "a1b2c3d4e5f6..."}
     )
 
-
 @app.post(
     "/api/document/sign/",
     response_model=SignDocumentResponse,
@@ -362,7 +363,7 @@ class SignDocumentResponse(BaseModel):
     tags=["Подписание документов"],
     description="Электронная подпись PDF документа с визуальным отображением подписи на странице. Процесс: 1. Получение документа из БД 2. Встраивание подписи в PDF 3. Вычисление нового хеша 4. Сохранение подписанного документа"
 )
-async def sign_document(request: SignatureRequest, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+async def sign_document(request: SignatureRequest, token: Optional[str] = Header(None) ):
     """
     Подписывает PDF документ визуальной подписью.
     
@@ -376,8 +377,8 @@ async def sign_document(request: SignatureRequest, token: Optional[str] = Header
         JSON с результатом операции и ID нового документа
     """
     try:
-
-        if not check_token_redis(db_redis, token, email):
+        email = check_token(token) 
+        if not email:
             return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
        
         # Валидация параметров подписи
@@ -481,7 +482,6 @@ class newUser(BaseModel):
    first_name:str
    last_name:str
 
-
 @app.post("/api/register/", tags=["Регистрация"])
 async def register_user(user: newUser):
   """Регистрация нового пользователя"""
@@ -502,14 +502,13 @@ async def register_user(user: newUser):
   except Exception as ex:
     logging.exception(f"Ошибка непостредственно в роуте register_user", ex)
 
-import base64
-from fastapi.responses import Response
-
 
 
 @app.get("/api/docs/download/", tags=["Документы"], summary="Скачивание документа по id")
-async def download_docs(doc_id:int, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-    if not check_token_redis(db_redis, token, email):
+async def download_docs(doc_id:int, token: Optional[str] = Header(None) ):
+    """"""
+    email = check_token(token)
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     doc = db.get_document_by_id(doc_id)
@@ -579,8 +578,10 @@ class SignatureValidationUNEPResponse(BaseModel):
     summary="Подписание документа в формате УНЭП",
     response_model=SignatureUNEPResponse
 )
-async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-    if not check_token_redis(db_redis, token, email):
+async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str] = Header(None) ):
+
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
@@ -652,8 +653,10 @@ async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str]
     summary="Проверка валидности УНЭП подписи",
     response_model=SignatureValidationUNEPResponse
 )
-async def verify_document_unep(request: SignatureValidationUNEPRequest, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-    if not check_token_redis(db_redis, token, email):
+async def verify_document_unep(request: SignatureValidationUNEPRequest, token: Optional[str] = Header(None) ):
+
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
@@ -703,9 +706,10 @@ class User(BaseModel):
          summary="Получение информации о пользователе",
          response_model=User
          )
-async def get_user_info(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+async def get_user_info(token: Optional[str] = Header(None) ):
     """Получение информации о пользователе"""
-    if not check_token_redis(db_redis, token, email):
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
@@ -726,25 +730,25 @@ class UserUpdate(BaseModel):
           tags=["Пользователь"], 
           summary="Обновление информации о пользователе"
           )
-async def update_user_info(user_update: UserUpdate, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
-   """Обновление информации о пользователе"""
-   if not check_token_redis(db_redis, token, email):
+async def update_user_info(user_update: UserUpdate, token: Optional[str] = Header(None) ):
+    """Обновление информации о пользователе"""
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
+    try:
+        user = service.User(email, db=db,flag_pg=True)
+        flag = user.set_name(user_update.first_name, user_update.last_name)
+        if flag:
+            content = {'status': service.SUCCESS_STATUS,
+                        'message': 'Информация успешно обновлена!'}
+        else:
+            content = {'status': service.GENERAL_ERROR_STATUS,
+                        'message': 'Ошибка при обновлении информации'}
+        return JSONResponse(content=content)
 
-   try:
-       user = service.User(email, db=db,flag_pg=True)
-       flag = user.set_name(user_update.first_name, user_update.last_name)
-       if flag:
-           content = {'status': service.SUCCESS_STATUS,
-                      'message': 'Информация успешно обновлена!'}
-       else:
-           content = {'status': service.GENERAL_ERROR_STATUS,
-                      'message': 'Ошибка при обновлении информации'}
-       return JSONResponse(content=content)
-
-   except Exception as ex:
-       logging.exception("Ошибка при обновлении информации о пользователе: ", ex)
-       return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error updating user info"}, status_code=500)
+    except Exception as ex:
+        logging.exception("Ошибка при обновлении информации о пользователе: ", ex)
+        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error updating user info"}, status_code=500)
 
 
 class DocumentToSend(BaseModel):
@@ -755,9 +759,10 @@ class DocumentToSend(BaseModel):
 @app.post("/api/document/send",
           tags=["Документы"], 
           summary="Отправка документа на подпись стороннему сервису")
-async def send_document_to_external_service(send_info: DocumentToSend, token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+async def send_document_to_external_service(send_info: DocumentToSend, token: Optional[str] = Header(None) ):
     """Отправка документа между пользователями"""
-    if not check_token_redis(db_redis, token, email):
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
@@ -776,9 +781,10 @@ async def send_document_to_external_service(send_info: DocumentToSend, token: Op
          tags=["Пользователь"],
          summary="Генерация пары ключей для пользователя"
          )
-async def generate_keys_for_user(token: Optional[str] = Header(None), email: Optional[str] = Header(None)):
+async def generate_keys_for_user(token: Optional[str] = Header(None) ):
     """Генерация пары ключей"""
-    if not check_token_redis(db_redis, token, email):
+    email = check_token(token) 
+    if not email:
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
