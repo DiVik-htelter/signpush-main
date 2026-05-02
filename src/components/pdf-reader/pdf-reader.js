@@ -310,7 +310,7 @@ export default function PdfReader({file, documentId}) {
 
       // Формируем запрос на подписание документа
       const response = await axios.post(
-        'document/sign', 
+        'document/sign/', 
         {
           document_id: documentId,           // ID исходного документа
           signature_base64: signatureImageData, // Изображение подписи

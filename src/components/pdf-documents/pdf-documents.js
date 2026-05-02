@@ -14,7 +14,7 @@ function PdfDocuments() {
     const [file, setFileName] = useState('');
     const [selectedDocumentId, setSelectedDocumentId] = useState(null); // ID выбранного документа для подписи
     const [deadline_at, setDeadline_at] = useState(-1)
-    const DOCUMENTS_URL = 'http://127.0.0.1:8000/api/docs/download';
+    const DOCUMENTS_URL = 'docs/download';
 
     const handleFileChange = async ({currentTarget: {files}}) => {
         if (files && files.length) {

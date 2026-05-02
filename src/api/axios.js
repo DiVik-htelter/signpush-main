@@ -2,7 +2,7 @@ import axios from "axios";
 import Cookies from 'js-cookie';
 
 const instance = axios.create({
-    baseURL: 'http://127.0.0.1:80/api/'
+    baseURL: 'http://127.0.0.1:80/api/' // для локальной разработки
     //baseURL: '/api/'
 });
 

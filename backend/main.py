@@ -39,10 +39,16 @@ db_redis = DatabaseRedis()
 # Разрешенные источники
 # docker 
 origins = [
+    "https://localhost",      # Доступ через Nginx (стандартный порт 80)
+    "https://127.0.0.1",
     "http://localhost",      # Доступ через Nginx (стандартный порт 80)
     "http://127.0.0.1",
     "http://localhost:3000",
-    "http://localhost:8000"
+    "http://localhost:8000",
+    "https://sign-push.ru",   # Продакшн домен
+    "https://www.sign-push.ru",
+    "http://195.208.119.146",  # VPS по IP
+    "http://sign-push.ru"     # HTTP fallback
 ]
 
 # Настройка CORS
@@ -102,7 +108,7 @@ class AuthResponse(BaseModel):
   )
 
 
-@app.post("/api/auth", response_model=AuthResponse, summary="Аутентификация пользователя", tags=["Аутентификация"])
+@app.post("/api/auth/", response_model=AuthResponse, summary="Аутентификация пользователя", tags=["Аутентификация"])
 async def chek_login(old_user: oldUser):
   """
   Проверка учетных данных и выдача токена аутентификации
@@ -112,15 +118,24 @@ async def chek_login(old_user: oldUser):
   - 2: Неверный логин или пароль
   - 3: Ошибка подключения к базе данных
   """
+  content = {
+      "status": service.GENERAL_ERROR_STATUS,
+      "token": -1,
+      "message": "Ошибка сервера"
+  }
+  
   try:
     user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
-    content = user.chek_auth(old_user.password)   
-    header = {
-        "Set-Cookie": "token=your_jwt_token; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600"
-    }
+    content = user.chek_auth(old_user.password)
   except Exception as exept:
     logging.exception(f"Ошибка непосредственно в роуте chek_login(): {exept}") 
-  return JSONResponse(content=content)
+    content = {
+        "status": service.GENERAL_ERROR_STATUS,
+        "token": -1,
+        "message": f"Ошибка при аутентификации: {str(exept)}"
+    }
+  
+  return JSONResponse(content=content, status_code=200)
 
 
 class Paper(BaseModel):

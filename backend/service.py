@@ -29,7 +29,7 @@ class User:
     def __init__(self, email:str, db: Database = None, db_redis: DatabaseRedis = None, flag_pg: bool = False):
         self.__email = email
         self.__db = db
-        self.__db_redis = db_redis
+        self.__db_redis = db_redis # тлько для сохранения созданного токена
 
         if flag_pg:
             __user = self.__db.get_user_by_email(self.__email)

@@ -1,5 +1,6 @@
+version: '3.8'
+
 services:
-  # 1. База данных PostgreSQL
   db:
     image: postgres:15-alpine
     container_name: signpush_db
@@ -10,15 +11,15 @@ services:
       POSTGRES_DB: ${DB_NAME:-signpush}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Автоматический накат твоей схемы при первом запуске:
-      - ./backend/full_dump.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backend/full_schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - signpush-net
 
-  # 2. Redis для почты и кэша
   redis:
     image: redis:alpine
     container_name: signpush_redis
@@ -26,8 +27,9 @@ services:
     command: redis-server --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
+    networks:
+      - signpush-net
 
-  # 3. Бэкенд (FastAPI)
   backend:
     build: ./backend
     container_name: signpush_backend
@@ -39,12 +41,12 @@ services:
         condition: service_started
     env_file:
       - ./backend/.env
-    # Переменные окружения для подключения к DB и Redis внутри Docker
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-1234}@db:5432/${DB_NAME:-signpush}
       REDIS_URL: redis://redis:6379/0
+    networks:
+      - signpush-net
 
-  # 4. Nginx + Frontend статика
   nginx:
     build: 
       context: .
@@ -55,9 +57,17 @@ services:
       - "443:443"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - backend
+    networks:
+      - signpush-net
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  signpush-net:
+    driver: bridge
