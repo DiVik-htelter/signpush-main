@@ -20,22 +20,33 @@ logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(m
 class Database:
   """Класс для работой с базой данных postgresql"""
 
-  def __init__(self):
-    """Установление соединения с бд"""
+  def __init__(self, connection=None):
+    """Установление соединения с бд
+    
+    Args:
+        connection: опциональное подключение PostgreSQL для DI (тестирование).
+                   Если None, создает настоящее подключение.
+    """
     try:
-      self.__connection = psycopg2.connect(
-        host=host,
-        user=user,
-        password=password,
-        dbname=db_name,
-        port=port )
-      
-      # Включение автокоммита
-      self.__connection.autocommit = True
-      with self.__connection.cursor() as cursor:
-        cursor.execute("SELECT version();")
-        logging.info(f"Server version: {cursor.fetchone()}")
-      logging.info(" Connection to PostgreSQL established")
+      if connection is None:
+        # Продакшн: создаем настоящее подключение
+        self.__connection = psycopg2.connect(
+          host=host,
+          user=user,
+          password=password,
+          dbname=db_name,
+          port=port )
+        
+        # Включение автокоммита
+        self.__connection.autocommit = True
+        with self.__connection.cursor() as cursor:
+          cursor.execute("SELECT version();")
+          logging.info(f"Server version: {cursor.fetchone()}")
+        logging.info(" Connection to PostgreSQL established")
+      else:
+        # Тестирование: используем внедренное подключение (mock)
+        self.__connection = connection
+        logging.info(" Mock connection injected for testing")
     except Exception as ex:
       logging.exception(f"Error connecting to database: {ex}")
       
@@ -513,10 +524,22 @@ from config_db import host_r, port_r
 class DatabaseRedis:
   """Класс для работы с базой данных Redis"""
 
-  def __init__(self):
+  def __init__(self, redis_connection=None):
+    """Инициализация Redis клиента
+    
+    Args:
+        redis_connection: опциональное Redis подключение для DI (тестирование).
+                         Если None, создает настоящее подключение.
+    """
     try:
-      self.r = redis.Redis(host=host_r, port=port_r, decode_responses=True)
-      logging.info(" Connection to Redis established")
+      if redis_connection is None:
+        # Продакшн: создаем настоящее подключение
+        self.r = redis.Redis(host=host_r, port=port_r, decode_responses=True)
+        logging.info(" Connection to Redis established")
+      else:
+        # Тестирование: используем внедренное подключение (mock)
+        self.r = redis_connection
+        logging.info(" Mock Redis connection injected for testing")
     except Exception as ex:
       logging.exception("Error connecting to Redis:", ex)
 

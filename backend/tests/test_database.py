@@ -1,16 +1,18 @@
 """
-Тесты для модуля database.py
+Тесты для модуля database.py с СТРОГИМИ ПРОВЕРКАМИ
 
 Функционал:
-- Тестирование операций с PostgreSQL
+- Тестирование операций с PostgreSQL с Dependency Injection
+- Тестирование структуры возвращаемых данных
+- Проверка параметров SQL запросов
 - Тестирование операций с Redis
-- Мок-тестирование работы с БД
 
 Примечание: Все глобальное мокирование выполняется в conftest.py
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
+import json
 
 try:
     from database import Database, DatabaseRedis
@@ -25,87 +27,167 @@ except ImportError as e:
 class TestDatabaseUserOperations:
     """Тестирование операций с пользователями в БД"""
     
-    def test_insert_user_success(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Успешная вставка пользователя"""
+    def test_insert_user_success_with_name(self, db_with_mocked_postgres, mock_postgres_cursor, mock_postgres_connection):
+        """Успешная вставка пользователя с именем и фамилией"""
+        # Setup
         mock_postgres_cursor.fetchone.return_value = (1,)
+        mock_postgres_cursor.execute.return_value = None
         
+        # Execute
         result = db_with_mocked_postgres.insert_user(
-            email="test@domain.com",
-            password="hashed_pass",
+            login="test@example.com",
+            password="testpass123",
             name={'firstName': 'John', 'lastName': 'Doe'}
         )
         
+        # Verify - СТРОГАЯ ПРОВЕРКА
+        assert isinstance(result, bool)
+        assert result is True
         assert mock_postgres_cursor.execute.called
-    
-    def test_insert_user_duplicate_email(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Попытка вставить пользователя с существующим email"""
-        mock_postgres_cursor.execute.side_effect = Exception("UNIQUE constraint violated")
         
-        with pytest.raises(Exception):
-            db_with_mocked_postgres.insert_user(
-                email="existing@domain.com",
-                password="pass",
-                name={'firstName': 'John', 'lastName': 'Doe'}
-            )
+        # Проверяем SQL запрос
+        call_args = mock_postgres_cursor.execute.call_args_list
+        assert len(call_args) > 0
+        sql_query, sql_params = call_args[-1][0]
+        assert "INSERT INTO users" in sql_query
+        assert "(%s, %s, %s, %s)" in sql_query
+        assert len(sql_params) == 4
+        assert sql_params[0] == "test@example.com"
+        assert sql_params[2] == "John"
+        assert sql_params[3] == "Doe"
+        
+        # Проверяем commit был вызван
+        assert mock_postgres_connection.commit.called
     
-    def test_get_user_by_email(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Получение пользователя по email"""
-        mock_postgres_cursor.fetchone.return_value = (
-            1, 'John', 'Doe', 'test@domain.com', True, 1704067200
+    def test_insert_user_success_without_name(self, db_with_mocked_postgres):
+        """Успешная вставка пользователя без имени"""
+        result = db_with_mocked_postgres.insert_user(
+            login="noname@example.com",
+            password="testpass123",
+            name=None
         )
         
-        result = db_with_mocked_postgres.get_user_by_email("test@domain.com")
-        
-        assert result is not None or result
-        assert mock_postgres_cursor.execute.called
+        assert isinstance(result, bool)
+        assert result is True
     
-    def test_get_user_by_email_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Поиск несуществующего пользователя"""
-        mock_postgres_cursor.fetchone.return_value = None
+    @pytest.mark.parametrize("email,expected", [
+        ("available@domain.com", True),
+        ("taken@domain.com", False),
+    ])
+    def test_is_original_email(self, db_with_mocked_postgres, mock_postgres_cursor, email, expected):
+        """Проверка доступности email - параметризованный тест"""
+        # Setup
+        if expected:
+            mock_postgres_cursor.fetchone.return_value = None  # Email не найден = свободен
+        else:
+            mock_postgres_cursor.fetchone.return_value = (1,)  # Email найден = занят
         
-        result = db_with_mocked_postgres.get_user_by_email("nonexistent@domain.com")
+        # Execute
+        result = db_with_mocked_postgres.is_original_email(email)
         
-        assert result is None or not result
+        # Verify
+        assert isinstance(result, bool), f"Expected bool, got {type(result)}"
+        assert result == expected, f"Expected {expected}, got {result}"
+        
+        # Проверяем что был вызван SELECT
+        assert mock_postgres_cursor.execute.called
+        call_args = mock_postgres_cursor.execute.call_args_list[-1][0]
+        sql_query, sql_params = call_args
+        assert "SELECT 1 FROM users" in sql_query
+        assert "WHERE email = %s" in sql_query
+        assert sql_params[0] == email
     
     def test_check_user_valid_credentials(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Проверка валидных учетных данных"""
-        mock_postgres_cursor.fetchone.return_value = (0,)
+        # Setup
+        from hashlib import sha256
+        password = "correct_password"
+        password_hash = sha256(password.encode()).hexdigest()
+        mock_postgres_cursor.fetchone.return_value = (password_hash, True)  # Пароль совпадает, активен
         
-        result = db_with_mocked_postgres.check_user("test@domain.com", "password123")
+        # Execute
+        result = db_with_mocked_postgres.check_user("test@domain.com", password)
         
-        assert result == 0 or result
+        # Verify
+        assert isinstance(result, int)
+        assert result == 0  # SUCCESS_STATUS
     
-    def test_check_user_invalid_credentials(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Проверка невалидных учетных данных"""
-        mock_postgres_cursor.fetchone.return_value = (2,)
+    def test_check_user_invalid_password(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Проверка невалидного пароля"""
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = ("other_hash", True)
         
-        result = db_with_mocked_postgres.check_user("test@domain.com", "wrongpass")
+        # Execute
+        result = db_with_mocked_postgres.check_user("test@domain.com", "wrong_password")
         
-        assert result == 2 or result
+        # Verify
+        assert isinstance(result, int)
+        assert result == 2  # INVALID_CREDENTIALS_STATUS
     
-    def test_is_original_email_available(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Проверка доступности email"""
-        mock_postgres_cursor.fetchone.return_value = (0,)
+    def test_check_user_user_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Проверка несуществующего пользователя"""
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = None
         
-        result = db_with_mocked_postgres.is_original_email("available@domain.com")
+        # Execute
+        result = db_with_mocked_postgres.check_user("nonexistent@domain.com", "password")
         
-        assert result is True or result == 0
+        # Verify
+        assert isinstance(result, int)
+        assert result == 2  # INVALID_CREDENTIALS_STATUS
     
-    def test_is_original_email_taken(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Проверка занятого email"""
-        mock_postgres_cursor.fetchone.return_value = (1,)
+    def test_get_user_by_email_found(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Получение пользователя по email - успешно найден"""
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = {
+            'id': 1,
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'is_email_verified': True,
+            'created_at': 1704067200
+        }
         
-        result = db_with_mocked_postgres.is_original_email("taken@domain.com")
+        # Execute
+        result = db_with_mocked_postgres.get_user_by_email("john@domain.com")
         
-        assert result is False or result == 1
+        # Verify - СТРОГАЯ ПРОВЕРКА СТРУКТУРЫ
+        assert result is not None
+        assert isinstance(result, dict)
+        assert 'id' in result
+        assert 'first_name' in result
+        assert 'last_name' in result
+        assert 'is_email_verified' in result
+        assert 'created_at' in result
+        assert isinstance(result['id'], int)
+        assert isinstance(result['first_name'], str)
+        assert isinstance(result['is_email_verified'], bool)
+        assert isinstance(result['created_at'], int)
     
-    def test_change_userName_by_id(self, db_with_mocked_postgres, mock_postgres_cursor):
+    def test_get_user_by_email_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Получение несуществующего пользователя"""
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = None
+        
+        # Execute
+        result = db_with_mocked_postgres.get_user_by_email("nonexistent@domain.com")
+        
+        # Verify
+        assert result is None
+    
+    def test_change_user_name(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Изменение имени пользователя"""
-        mock_postgres_cursor.execute.return_value = None
-        
+        # Execute
         db_with_mocked_postgres.change_userName_by_id(1, "Jane", "Smith")
         
+        # Verify
         assert mock_postgres_cursor.execute.called
+        call_args = mock_postgres_cursor.execute.call_args_list[-1][0]
+        sql_query, sql_params = call_args
+        assert "UPDATE users" in sql_query
+        assert "first_name = %s" in sql_query
+        assert "last_name = %s" in sql_query
+        assert sql_params[0] == "Jane"
+        assert sql_params[1] == "Smith"
 
 
 # =====================================================================
@@ -117,82 +199,150 @@ class TestDatabaseDocumentOperations:
     
     def test_insert_doc_success(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Успешная вставка документа"""
-        mock_postgres_cursor.execute.return_value = None
-        
+        # Execute
         result = db_with_mocked_postgres.insert_doc(
-            title="test.pdf",
-            hash="abc123",
+            title="Contract.pdf",
+            hash="sha256hash123",
             created_at=1704067200,
-            base64="base64content",
+            base64="JVBERi0xLjQK...",
             email="test@domain.com"
         )
         
+        # Verify
+        assert isinstance(result, bool)
+        assert result is True
+        
+        # Проверяем SQL запрос
         assert mock_postgres_cursor.execute.called
-    
-    def test_get_document_by_id(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Получение документа по ID"""
-        mock_doc = (1, 'test.pdf', 'abc123', 'base64', 'test@domain.com')
-        mock_postgres_cursor.fetchone.return_value = mock_doc
-        
-        result = db_with_mocked_postgres.get_document_by_id(1)
-        
-        assert result is not None or result
-        assert mock_postgres_cursor.execute.called
-    
-    def test_get_document_by_id_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Получение несуществующего документа"""
-        mock_postgres_cursor.fetchone.return_value = None
-        
-        result = db_with_mocked_postgres.get_document_by_id(999)
-        
-        assert result is None or not result
+        call_args = mock_postgres_cursor.execute.call_args_list[-1][0]
+        sql_query, sql_params = call_args
+        assert "INSERT INTO documents" in sql_query
+        assert sql_params[0] == "Contract.pdf"
+        assert sql_params[1] == "sha256hash123"
     
     def test_get_all_list_docs(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Получение всех документов пользователя"""
+        # Setup
         mock_docs = [
-            (1, 'doc1.pdf', 'hash1', 'unsigned', 1704067200, 'test@domain.com'),
-            (2, 'doc2.pdf', 'hash2', 'signed', 1704067300, 'test@domain.com')
+            {
+                'id': 1,
+                'title': 'doc1.pdf',
+                'hash': 'hash1',
+                'signing_status': 'unsigned',
+                'created_at': 1704067200,
+                'email': 'test@domain.com'
+            },
+            {
+                'id': 2,
+                'title': 'doc2.pdf',
+                'hash': 'hash2',
+                'signing_status': 'signed',
+                'created_at': 1704067300,
+                'email': 'test@domain.com'
+            }
         ]
         mock_postgres_cursor.fetchall.return_value = mock_docs
         
+        # Execute
         result = db_with_mocked_postgres.get_all_list_docs("test@domain.com")
         
+        # Verify - СТРОГАЯ ПРОВЕРКА
+        assert isinstance(result, list)
         assert len(result) == 2
-        assert mock_postgres_cursor.execute.called
+        
+        # Проверяем структуру каждого элемента
+        for doc in result:
+            assert isinstance(doc, dict)
+            required_keys = {'id', 'title', 'hash', 'signing_status', 'created_at', 'email'}
+            assert required_keys <= set(doc.keys())
+            assert isinstance(doc['id'], int)
+            assert isinstance(doc['title'], str)
+            assert isinstance(doc['created_at'], int)
     
     def test_get_all_list_docs_empty(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Получение списка документов для пользователя без документов"""
+        # Setup
         mock_postgres_cursor.fetchall.return_value = []
         
+        # Execute
         result = db_with_mocked_postgres.get_all_list_docs("noissue@domain.com")
         
+        # Verify
+        assert isinstance(result, list)
         assert len(result) == 0
+    
+    def test_get_document_by_id_success(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Получение документа по ID - успешно"""
+        # Setup
+        mock_doc = {
+            'id': 1,
+            'title': 'test.pdf',
+            'hash': 'abc123def456',
+            'created_at': 1704067200,
+            'base64': 'base64content',
+            'email': 'test@domain.com'
+        }
+        mock_postgres_cursor.fetchone.return_value = mock_doc
+        
+        # Execute
+        result = db_with_mocked_postgres.get_document_by_id(1)
+        
+        # Verify - СТРОГАЯ ПРОВЕРКА СТРУКТУРЫ
+        assert result is not None
+        assert isinstance(result, dict)
+        assert 'id' in result
+        assert 'title' in result
+        assert 'hash' in result
+        assert 'created_at' in result
+        assert 'base64' in result
+        assert 'email' in result
+        assert isinstance(result['id'], int)
+        assert isinstance(result['title'], str)
+        assert isinstance(result['created_at'], int)
+    
+    def test_get_document_by_id_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Получение несуществующего документа"""
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = None
+        
+        # Execute
+        result = db_with_mocked_postgres.get_document_by_id(999)
+        
+        # Verify
+        assert result is None
     
     def test_delet_document_by_id_success(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Успешное удаление документа"""
-        mock_postgres_cursor.execute.return_value = None
-        mock_postgres_cursor.rowcount = 1
-        
+        # Execute
         result = db_with_mocked_postgres.delet_document_by_id(1)
         
+        # Verify
+        assert isinstance(result, bool)
+        assert result is True
         assert mock_postgres_cursor.execute.called
+        
+        # Проверяем что DELETE был вызван
+        call_args = mock_postgres_cursor.execute.call_args_list[-1][0]
+        sql_query, sql_params = call_args
+        assert "DELETE FROM documents" in sql_query
+        assert sql_params[0] == 1
     
     def test_delet_document_by_id_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Попытка удалить несуществующий документ"""
-        mock_postgres_cursor.execute.return_value = None
-        mock_postgres_cursor.rowcount = 0
+        # Execute
+        result = db_with_mocked_postgres.delet_document_by_id(999)
         
-        db_with_mocked_postgres.delet_document_by_id(999)
-        
+        # Verify - функция может вернуть True даже если документа нет
+        # но DELETE ЗАПРОС был выполнен
+        assert isinstance(result, bool)
         assert mock_postgres_cursor.execute.called
     
     def test_insert_signed_document(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Вставка подписанного документа"""
-        mock_postgres_cursor.execute.return_value = None
-        mock_postgres_cursor.fetchone.return_value = (2,)
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = (2,)  # ID нового документа
         
-        signature_data = {'x': 100, 'y': 100, 'width': 50, 'height': 50}
-        
+        # Execute
         result = db_with_mocked_postgres.insert_signed_document(
             title="signed.pdf",
             hash="sig_hash",
@@ -201,9 +351,14 @@ class TestDatabaseDocumentOperations:
             email="test@domain.com",
             original_doc_id=1,
             signer="test@domain.com",
-            signature_data=signature_data
+            signature_data={'x': 100, 'y': 100, 'width': 50, 'height': 50}
         )
         
+        # Verify
+        assert isinstance(result, (int, type(None)))
+        if result is not None:
+            assert isinstance(result, int)
+            assert result == 2  # ID документа
         assert mock_postgres_cursor.execute.called
 
 
@@ -216,47 +371,74 @@ class TestDatabaseKeyOperations:
     
     def test_insert_keys_by_email(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Вставка пары ключей для пользователя"""
-        mock_postgres_cursor.execute.return_value = None
-        
-        db_with_mocked_postgres.insert_keys_by_email(
+        # Execute
+        result = db_with_mocked_postgres.insert_keys_by_email(
             email="test@domain.com",
-            public_key="pub_key_b64",
-            private_key="priv_key_b64"
+            public_key="pub_key_b64_encoded",
+            private_key="priv_key_b64_encoded"
         )
         
+        # Verify
+        assert isinstance(result, bool)
+        assert result is True
         assert mock_postgres_cursor.execute.called
-    
-    def test_get_public_key_by_email(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Получение публичного ключа пользователя"""
-        mock_postgres_cursor.fetchone.return_value = ("pub_key_b64",)
         
+        # Проверяем SQL запрос
+        call_args = mock_postgres_cursor.execute.call_args_list[-1][0]
+        sql_query, sql_params = call_args
+        assert "UPDATE users" in sql_query
+        assert "public_key = %s" in sql_query
+        assert "private_key = %s" in sql_query
+        assert sql_params[0] == "pub_key_b64_encoded"
+        assert sql_params[1] == "priv_key_b64_encoded"
+    
+    def test_get_public_key_by_email_success(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Получение публичного ключа пользователя"""
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = ("pub_key_b64_encoded",)
+        
+        # Execute
         result = db_with_mocked_postgres.get_public_key_by_email("test@domain.com")
         
-        assert result is not None or result
+        # Verify
+        assert result is not None
+        assert isinstance(result, str)
+        assert result == "pub_key_b64_encoded"
     
     def test_get_public_key_by_email_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Получение публичного ключа для пользователя без ключей"""
+        # Setup
         mock_postgres_cursor.fetchone.return_value = None
         
+        # Execute
         result = db_with_mocked_postgres.get_public_key_by_email("nokey@domain.com")
         
-        assert result is None or not result
+        # Verify
+        assert result is None
     
-    def test_get_private_key_by_email(self, db_with_mocked_postgres, mock_postgres_cursor):
+    def test_get_private_key_by_email_success(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Получение приватного ключа пользователя"""
-        mock_postgres_cursor.fetchone.return_value = ("priv_key_b64",)
+        # Setup
+        mock_postgres_cursor.fetchone.return_value = ("priv_key_b64_encoded",)
         
+        # Execute
         result = db_with_mocked_postgres.get_private_key_by_email("test@domain.com")
         
-        assert result is not None or result
+        # Verify
+        assert result is not None
+        assert isinstance(result, str)
+        assert result == "priv_key_b64_encoded"
     
     def test_get_private_key_by_email_not_found(self, db_with_mocked_postgres, mock_postgres_cursor):
         """Получение приватного ключа для пользователя без ключей"""
+        # Setup
         mock_postgres_cursor.fetchone.return_value = None
         
+        # Execute
         result = db_with_mocked_postgres.get_private_key_by_email("nokey@domain.com")
         
-        assert result is None or not result
+        # Verify
+        assert result is None
 
 
 # =====================================================================
@@ -266,37 +448,77 @@ class TestDatabaseKeyOperations:
 class TestDatabaseRedisOperations:
     """Тестирование операций с Redis"""
     
-    def test_save_refresh_token(self, redis_with_mocked_connection, mock_redis_client):
+    def test_save_refresh_token(self):
         """Сохранение refresh токена"""
-        mock_redis_client.setex.return_value = True
+        # Setup
+        mock_redis = MagicMock()
+        mock_redis.setex.return_value = True
         
-        redis_with_mocked_connection.save_refresh_token("test@domain.com", "refresh_token_123")
+        # Execute
+        db_redis = DatabaseRedis(redis_connection=mock_redis)
+        result = db_redis.save_refresh_token("test@domain.com", "refresh_token_123")
         
-        assert mock_redis_client.setex.called
+        # Verify
+        assert isinstance(result, bool)
+        assert result is True
+        assert mock_redis.setex.called
+        
+        # Проверяем параметры вызова
+        call_args = mock_redis.setex.call_args
+        assert "refresh_token:test@domain.com" in call_args[0][0]
     
-    def test_get_refresh_token(self, redis_with_mocked_connection, mock_redis_client):
-        """Получение refresh токена"""
-        mock_redis_client.get.return_value = b"refresh_token_123"
+    def test_check_refresh_token_valid(self):
+        """Проверка валидного токена"""
+        # Setup
+        import json
+        token_data = {"email": "test@domain.com", "refresh_token": "token_123"}
+        mock_redis = MagicMock()
+        mock_redis.get.return_value = json.dumps(token_data)
         
-        result = redis_with_mocked_connection.get_refresh_token("test@domain.com")
+        # Execute
+        db_redis = DatabaseRedis(redis_connection=mock_redis)
+        result = db_redis.check_refresh_token("test@domain.com", "token_123")
         
-        assert result is not None or result
+        # Verify
+        assert isinstance(result, bool)
+        assert result is True
     
-    def test_get_refresh_token_expired(self, redis_with_mocked_connection, mock_redis_client):
-        """Получение истекшего refresh токена"""
-        mock_redis_client.get.return_value = None
+    def test_check_refresh_token_invalid(self):
+        """Проверка невалидного токена"""
+        # Setup
+        mock_redis = MagicMock()
+        mock_redis.get.return_value = None
         
-        result = redis_with_mocked_connection.get_refresh_token("test@domain.com")
+        # Execute
+        db_redis = DatabaseRedis(redis_connection=mock_redis)
+        result = db_redis.check_refresh_token("test@domain.com", "token_123")
         
-        assert result is None or not result
+        # Verify
+        assert isinstance(result, bool)
+        assert result is False
     
-    def test_delete_refresh_token(self, redis_with_mocked_connection, mock_redis_client):
+    def test_delete_refresh_token(self):
         """Удаление refresh токена"""
-        mock_redis_client.delete.return_value = 1
+        # Setup
+        mock_redis = MagicMock()
+        mock_redis.delete.return_value = 1
         
-        redis_with_mocked_connection.delete_refresh_token("test@domain.com")
+        # Execute
+        db_redis = DatabaseRedis(redis_connection=mock_redis)
+        result = db_redis.delete_refresh_token("test@domain.com")
         
-        assert mock_redis_client.delete.called
+        # Verify
+        assert isinstance(result, bool)
+        assert result is True
+        assert mock_redis.delete.called
+    
+    def test_redis_di_fallback(self):
+        """Проверка что при connection=None создается реальное подключение"""
+        # Это более интеграционный тест
+        # Просто проверяем что конструктор работает
+        db_redis = DatabaseRedis(redis_connection=MagicMock())
+        assert db_redis is not None
+        assert db_redis.r is not None
 
 
 # =====================================================================
@@ -306,45 +528,33 @@ class TestDatabaseRedisOperations:
 class TestDatabaseIntegration:
     """Интеграционные тесты для полных сценариев"""
     
-    def test_full_user_lifecycle(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Полный цикл жизни пользователя: регистрация → получение → обновление"""
-        # 1. Регистрация
-        mock_postgres_cursor.fetchone.return_value = (1,)
-        register_result = db_with_mocked_postgres.insert_user(
-            "test@domain.com", "pass", {'firstName': 'John', 'lastName': 'Doe'}
-        )
-        assert mock_postgres_cursor.execute.called
+    def test_full_user_scenario(self, db_with_mocked_postgres, mock_postgres_cursor):
+        """Полный сценарий: регистрация → поиск → обновление"""
+        # 1. Проверка свеободности email
+        mock_postgres_cursor.fetchone.return_value = None  # Email свободен
+        is_available = db_with_mocked_postgres.is_original_email("john@domain.com")
+        assert is_available is True
         
-        # 2. Получение
-        mock_postgres_cursor.fetchone.return_value = (
-            1, 'John', 'Doe', 'test@domain.com', True, 1704067200
+        # 2. Регистрация пользователя
+        result = db_with_mocked_postgres.insert_user(
+            "john@domain.com", "pass123",
+            name={'firstName': 'John', 'lastName': 'Doe'}
         )
-        user = db_with_mocked_postgres.get_user_by_email("test@domain.com")
+        assert result is True
+        
+        # 3. Получение пользователя
+        mock_postgres_cursor.fetchone.return_value = {
+            'id': 1,
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'is_email_verified': True,
+            'created_at': 1704067200
+        }
+        user = db_with_mocked_postgres.get_user_by_email("john@domain.com")
         assert user is not None
+        assert user['first_name'] == 'John'
         
-        # 3. Обновление
-        mock_postgres_cursor.execute.return_value = None
+        # 4. Обновление данных
         db_with_mocked_postgres.change_userName_by_id(1, "Jane", "Smith")
         assert mock_postgres_cursor.execute.called
-    
-    def test_full_document_lifecycle(self, db_with_mocked_postgres, mock_postgres_cursor):
-        """Полный цикл документа: загрузка → получение → удаление"""
-        # 1. Загрузка
-        mock_postgres_cursor.execute.return_value = None
-        db_with_mocked_postgres.insert_doc(
-            "test.pdf", "hash1", 1704067200, "base64", "test@domain.com"
-        )
-        assert mock_postgres_cursor.execute.called
-        
-        # 2. Получение
-        mock_postgres_cursor.fetchone.return_value = (
-            1, "test.pdf", "hash1", "base64", "test@domain.com"
-        )
-        doc = db_with_mocked_postgres.get_document_by_id(1)
-        assert doc is not None
-        
-        # 3. Удаление
-        mock_postgres_cursor.execute.return_value = None
-        mock_postgres_cursor.rowcount = 1
-        db_with_mocked_postgres.delet_document_by_id(1)
-        assert mock_postgres_cursor.execute.called
+

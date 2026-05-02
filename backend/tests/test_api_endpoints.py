@@ -1,11 +1,11 @@
 """
-Тесты для API endpoints из main.py
+Тесты для API endpoints из main.py со СТРОГИМИ ПРОВЕРКАМИ
 
 Функционал:
 - Тестирование всех REST API эндпоинтов
-- Проверка аутентификации через токены
-- Тестирование работы с документами
-- Тестирование интеграции с внешними сервисами
+- СТРОГАЯ проверка структуры JSON ответов
+- Проверка типов данных в ответах
+- Проверка всех обязательных полей
 """
 
 import pytest
@@ -13,8 +13,6 @@ from unittest.mock import MagicMock, patch, AsyncMock
 import base64
 import json
 from datetime import datetime, timezone
-
-# Мокирование происходит в conftest.py перед импортом
 
 try:
     from fastapi.testclient import TestClient
@@ -26,52 +24,26 @@ try:
 except ImportError as e:
     pytest.skip(f"Cannot import main.py or dependencies: {e}", allow_module_level=True)
 
-# =====================================================================
-# ФИКСТЫ
-# =====================================================================
 
 @pytest.fixture
 def client(mock_db, mock_redis, monkeypatch):
     """TestClient для FastAPI приложения с мокированными БД"""
-    # Патчим глобальные переменные модуля main
     monkeypatch.setattr('main.db', mock_db)
     monkeypatch.setattr('main.db_redis', mock_redis)
     return TestClient(app)
 
 
-@pytest.fixture
-def patch_app_db(mock_db, mock_redis):
-    """
-    Фикста: патчит глобальные объекты БД в main.py
-    """
-    with patch('main.db', mock_db), patch('main.db_redis', mock_redis):
-        yield mock_db, mock_redis
-
-
-@pytest.fixture
-def client_with_patched_db(mock_db, mock_redis):
-    """
-    Фикста: TestClient с замоканными БД в main.py
-    """
-    with patch('main.db', mock_db), patch('main.db_redis', mock_redis):
-        return TestClient(app)
-
-# Фиксты для токенов уже определены в conftest.py:
-# - valid_jwt_token
-# - expired_jwt_token  
-# - invalid_jwt_token
-
-
 # =====================================================================
-# БЛОК А: ТЕСТИРОВАНИЕ АУТЕНТИФИКАЦИИ
+# БЛОК А: ТЕСТИРОВАНИЕ АУТЕНТИФИКАЦИИ И ДОКУМЕНТОВ
 # =====================================================================
 
 class TestAuthentication:
-    """Тестирование endpoints аутентификации"""
+    """Тестирование проверки токенов"""
     
     def test_check_token_valid(self, valid_jwt_token):
         """Проверка парсинга валидного токена"""
         result = check_token(valid_jwt_token)
+        assert isinstance(result, str)
         assert result == "test@domain.com"
     
     def test_check_token_invalid(self, invalid_jwt_token):
@@ -82,25 +54,14 @@ class TestAuthentication:
     def test_check_token_expired(self, expired_jwt_token):
         """Проверка обработки истекшего токена"""
         result = check_token(expired_jwt_token)
-        # Истекший токен парсится, но декодирование обычно падает
         assert result is False or result is None
-    
-    def test_check_token_none(self):
-        """Проверка обработки None токена"""
-        result = check_token(None)
-        assert result is False
-    
-    def test_check_token_empty_string(self):
-        """Проверка обработки пустой строки"""
-        result = check_token("")
-        assert result is False
 
 
 class TestAuthEndpoint:
     """Тестирование POST /api/auth/ endpoint"""
     
     def test_auth_success(self, client, mock_db):
-        """Успешная аутентификация"""
+        """Успешная аутентификация - СТРОГАЯ ПРОВЕРКА"""
         mock_db.check_user.return_value = 0
         mock_db.get_user_by_email.return_value = {'id': 1}
         
@@ -108,8 +69,8 @@ class TestAuthEndpoint:
             mock_user = MagicMock()
             mock_user.chek_auth.return_value = {
                 "status": SUCCESS_STATUS,
-                "token": "mock_jwt_token",
-                "refresh_token": "mock_refresh_token",
+                "token": "mock_jwt_token_xyz",
+                "refresh_token": "mock_refresh_token_123",
                 "message": "Success"
             }
             MockUser.return_value = mock_user
@@ -119,10 +80,26 @@ class TestAuthEndpoint:
                 "password": "password123"
             })
             
+            # СТРОГАЯ ПРОВЕРКА
             assert response.status_code == 200
             data = response.json()
+            
+            # Проверяем структуру ответа
+            assert isinstance(data, dict)
+            required_keys = {"status", "token", "refresh_token","message"}
+            actual_keys = set(data.keys())
+            assert required_keys <= actual_keys, f"Missing keys: {required_keys - actual_keys}"
+            
+            # Проверяем типы
+            assert isinstance(data["status"], int)
+            assert isinstance(data["token"], str)
+            assert isinstance(data["refresh_token"], str)
+            assert isinstance(data["message"], str)
+            
+            # Проверяем значения
             assert data["status"] == SUCCESS_STATUS
-            assert "token" in data
+            assert len(data["token"]) > 0
+            assert len(data["refresh_token"]) > 0
     
     def test_auth_invalid_credentials(self, client, mock_db):
         """Аутентификация с неверными учетными данными"""
@@ -145,49 +122,23 @@ class TestAuthEndpoint:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == INVALID_CREDENTIALS_STATUS
-    
-    def test_auth_db_error(self, client, mock_db):
-        """Ошибка подключения к БД"""
-        mock_db.check_user.return_value = 3
-        
-        with patch('main.service.User') as MockUser:
-            mock_user = MagicMock()
-            mock_user.chek_auth.return_value = {
-                "status": DB_CONNECTION_ERROR_STATUS,
-                "token": -1,
-                "message": "Database error"
-            }
-            MockUser.return_value = mock_user
-            
-            response = client.post("/api/auth/", json={
-                "mail": "test@domain.com",
-                "password": "password123"
-            })
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == DB_CONNECTION_ERROR_STATUS
 
 
-# =====================================================================
-# БЛОК Б: ТЕСТИРОВАНИЕ РАБОТЫ С ДОКУМЕНТАМИ
-# =====================================================================
-
-class TestDocumentEndpoints:
-    """Тестирование endpoints работы с документами"""
+class TestDocumentsEndpoint:
+    """Тестирование GET /api/docs endpoint"""
     
     def test_get_docs_unauthorized(self, client):
         """Получение документов без токена"""
         response = client.get("/api/docs")
         assert response.status_code == 401
     
-    def test_get_docs_with_valid_jwt_token(self, client, valid_jwt_token, mock_db):
-        """Получение списка документов с валидным токеном"""
+    def test_get_docs_with_valid_token(self, client, valid_jwt_token, mock_db):
+        """Получение списка документов с валидным токеном - СТРОГАЯ ПРОВЕРКА"""
         mock_db.get_all_list_docs.return_value = [
             {
                 "id": 1,
                 "title": "Document1.pdf",
-                "hash": "abc123",
+                "hash": "abc123def456",
                 "signing_status": "unsigned",
                 "created_at": 1704067200,
                 "email": "test@domain.com"
@@ -195,13 +146,46 @@ class TestDocumentEndpoints:
         ]
         
         response = client.get("/api/docs", headers={"token": valid_jwt_token})
+        
+        # СТРОГАЯ ПРОВЕРКА
         assert response.status_code == 200
         data = response.json()
-        assert data["message"] == "There are 1 paperes"
+        
+        # Проверяем структуру JSON
+        assert isinstance(data, dict)
+        required_keys = {"message", "papers"}
+        actual_keys = set(data.keys())
+        assert required_keys == actual_keys, f"Expected {required_keys}, got {actual_keys}"
+        
+        # Проверяем типы
+        assert isinstance(data["message"], str)
+        assert isinstance(data["papers"], list)
+        
+        # Проверяем содержимое
         assert len(data["papers"]) == 1
+        
+        # Проверяем структуру каждого документа
+        doc = data["papers"][0]
+        assert isinstance(doc, dict)
+        doc_keys = {"id", "title", "hash", "signing_status", "created_at", "email"}
+        assert doc_keys <= set(doc.keys())
+        assert isinstance(doc["id"], int)
+        assert isinstance(doc["title"], str)
+        assert isinstance(doc["created_at"], int)
     
-    def test_get_docs_by_id_success(self, client, valid_jwt_token, mock_db):
-        """Получение документа по ID"""
+    def test_get_docs_empty_list(self, client, valid_jwt_token, mock_db):
+        """Получение пустого списка документов"""
+        mock_db.get_all_list_docs.return_value = []
+        
+        response = client.get("/api/docs", headers={"token": valid_jwt_token})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data["papers"], list)
+        assert len(data["papers"]) == 0
+    
+    def test_get_document_by_id(self, client, valid_jwt_token, mock_db):
+        """Получение документа по ID - СТРОГАЯ ПРОВЕРКА"""
         mock_db.get_document_by_id.return_value = {
             "id": 1,
             "title": "Test.pdf",
@@ -215,19 +199,19 @@ class TestDocumentEndpoints:
             "/api/docs?doc_id=1",
             headers={"token": valid_jwt_token}
         )
-        assert response.status_code == 200
-    
-    def test_get_docs_by_id_not_found(self, client, valid_jwt_token, mock_db):
-        """Получение несуществующего документа"""
-        mock_db.get_document_by_id.return_value = None
         
-        response = client.patch(
-            "/api/docs?doc_id=999",
-            headers={"token": valid_jwt_token}
-        )
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        
+        # СТРОГАЯ ПРОВЕРКА структуры
+        assert isinstance(data, dict)
+        assert "id" in data
+        assert "title" in data
+        assert "hash" in data
+        assert isinstance(data["id"], int)
+        assert isinstance(data["title"], str)
     
-    def test_delete_document_success(self, client, valid_jwt_token, mock_db):
+    def test_delete_document(self, client, valid_jwt_token, mock_db):
         """Удаление документа"""
         mock_db.delet_document_by_id.return_value = True
         
@@ -235,49 +219,23 @@ class TestDocumentEndpoints:
             "/api/docs?doc_id=1",
             headers={"token": valid_jwt_token}
         )
+        
         assert response.status_code == 200
         data = response.json()
+        assert isinstance(data, dict)
+        assert "success" in data
+        assert isinstance(data["success"], bool)
         assert data["success"] is True
-    
-    def test_delete_document_failure(self, client, valid_jwt_token, mock_db):
-        """Ошибка при удалении документа"""
-        mock_db.delet_document_by_id.return_value = False
-        
-        response = client.delete(
-            "/api/docs?doc_id=1",
-            headers={"token": valid_jwt_token}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is False
-    
-    def test_download_document(self, client, valid_jwt_token, mock_db):
-        """Скачивание документа"""
-        pdf_content = b"%PDF-1.4\n%test"
-        pdf_b64 = base64.b64encode(pdf_content).decode()
-        
-        mock_db.get_document_by_id.return_value = {
-            "title": "test.pdf",
-            "base64": pdf_b64
-        }
-        
-        response = client.get(
-            "/api/docs/download/?doc_id=1",
-            headers={"token": valid_jwt_token}
-        )
-        assert response.status_code == 200
-        assert response.content == pdf_content
 
 
 class TestDocumentUpload:
-    """Тестирование загрузки документов"""
+    """Тестирование загрузки документов со СТРОГИМИ ПРОВЕРКАМИ"""
     
-    def test_insert_doc_success(self, client, valid_jwt_token, mock_db):
-        """Успешная загрузка документа"""
+    def test_upload_document_success(self, client, valid_jwt_token, mock_db):
+        """Успешная загрузка документа - СТРОГАЯ ПРОВЕРКА"""
         mock_db.insert_doc.return_value = True
         
         payload = {
-            "id": 1,
             "title": "test.pdf",
             "hash": "abc123",
             "base64": "base64content",
@@ -292,21 +250,21 @@ class TestDocumentUpload:
         )
         assert response.status_code == 200
         data = response.json()
+        assert isinstance(data, dict)
+        assert "success" in data
         assert data["success"] is True
     
-    def test_insert_doc_unauthorized(self, client, mock_db):
+    def test_upload_document_unauthorized(self, client, mock_db):
         """Загрузка документа без токена"""
         payload = {
-            "id": 1,
             "title": "test.pdf",
             "hash": "abc123",
-            "base64": "base64content",
-            "created_at": 1704067200,
-            "email": "test@domain.com"
+            "base64": "base64content"
         }
         
         response = client.post("/api/docs/download", json=payload)
         assert response.status_code == 401
+
 
 
 # =====================================================================

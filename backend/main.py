@@ -66,7 +66,7 @@ def check_token(token:str) -> bool:
         data = service.User.decoded_jwt(token)
         if data is None:
             logging.warning("Invalid token: unable to extract email")
-            return data
+            return False
 
         return data['name']
     except Exception as ex:
@@ -706,7 +706,7 @@ async def verify_document_unep(request: SignatureValidationUNEPRequest, token: O
             "message": str(ex),
             "attrs": [],
             "checks": {}
-        }, status_code=500)
+        }, status_code=400)
 
 class User(BaseModel):
     first_name:str
@@ -734,7 +734,7 @@ async def get_user_info(token: Optional[str] = Header(None) ):
 
     except Exception as ex:
         logging.exception("Ошибка при получении информации о пользователе: ", ex)
-        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error fetching user info"}, status_code=500)
+        return JSONResponse(content={'status': service.GENERAL_ERROR_STATUS, "message": "Error fetching user info"}, status_code=400)
 
 class UserUpdate(BaseModel):
     first_name:str

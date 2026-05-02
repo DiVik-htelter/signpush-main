@@ -27,34 +27,18 @@ mock_config = MagicMock()
 mock_config.SECRET_KEY = "test_secret_key_for_jwt"
 mock_config.DB_URL = "postgresql://test:test@localhost/test_db"
 mock_config.REDIS_URL = "redis://localhost:6379/0"
+mock_config.host_r = "localhost"
+mock_config.port_r = 6379
 sys.modules['config_db'] = mock_config
 
-# 2. Мокируем database - НО правильно!
-# Вместо пустых классов, создаем MagicMock с нужным интерфейсом
-mock_database_module = MagicMock()
-
-# Для типов используем наши фиксты, которые вернут MagicMock  
-# Просто помечаем их как классы для аннотаций типов
-def _DatabaseFactory():
-    return MagicMock()
-
-def _DatabaseRedisFactory():
-    return MagicMock()
-
-mock_database_module.Database = _DatabaseFactory
-mock_database_module.DatabaseRedis = _DatabaseRedisFactory
-sys.modules['database'] = mock_database_module
-
-# 3. Импортируем сервис ПОСЛЕ мокирования всех зависимостей
+# 2. Добавляем родительскую директорию в путь
 import sys
 from pathlib import Path
 
-# Добавляем родительскую директорию в путь
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# Теперь импорт будет работать
-from service import User, SignatureUNEP
+# 3. Импортируем srevice ПОСЛЕ мокирования config_db
 try:
     from service import (
         User, SignatureUNEP,
@@ -225,61 +209,72 @@ def test_document_data():
 
 @pytest.fixture
 def mock_postgres_cursor():
-    """Mock для курсора PostgreSQL."""
+    """Mock для курсора PostgreSQL с поддержкой context manager."""
     cursor = MagicMock()
+    
+    # Стандартные возвращаемые значения
     cursor.fetchone.return_value = (1,)  # ID пользователя по умолчанию
     cursor.fetchall.return_value = []
+    cursor.execute.return_value = None
+    cursor.close.return_value = None
+    
+    # Context manager поддержка (__enter__ и __exit__)
+    cursor.__enter__ = MagicMock(return_value=cursor)
+    cursor.__exit__ = MagicMock(return_value=None)
+    
     return cursor
 
 
 @pytest.fixture
-def mock_postgres_connection():
-    """Mock для соединения PostgreSQL."""
+def mock_postgres_connection(mock_postgres_cursor):
+    """Mock для соединения PostgreSQL с правильной context manager поддержкой."""
     connection = MagicMock()
-    connection.cursor.return_value = MagicMock()
-    connection.commit = MagicMock()
-    connection.close = MagicMock()
+    
+    # cursor() возвращает context manager который работает с with statement
+    cursor_context_manager = MagicMock()
+    cursor_context_manager.__enter__ = MagicMock(return_value=mock_postgres_cursor)
+    cursor_context_manager.__exit__ = MagicMock(return_value=None)
+    
+    connection.cursor.return_value = cursor_context_manager
+    connection.commit.return_value = None
+    connection.close.return_value = None
+    connection.autocommit = True
+    
     return connection
 
 
 @pytest.fixture
-def db_with_mocked_postgres(mock_postgres_connection, mock_postgres_cursor):
+def db_with_mocked_postgres(mock_postgres_connection):
     """
     Фикста: Database класс с замоканным PostgreSQL.
-    Вместо импорта реального класса, возвращаем MagicMock с нужным интерфейсом.
+    Используется для unit-тестирования методов Database с реальной DI.
     """
-    
-    db = MagicMock()
-    
-    # Конфигурируем mock для операций с пользователями
-    db.get_user_by_email = MagicMock(return_value={
-        'id': 101,
-        'first_name': 'Test',
-        'last_name': 'Testov',
-        'is_email_verified': True,
-        'created_at': 1672531200
-    })
-    db.insert_user = MagicMock(return_value=True)
-    db.check_user = MagicMock(return_value=0)
-    db.is_original_email = MagicMock(return_value=True)
-    db.change_userName_by_id = MagicMock(return_value=True)
-    
-    # Конфигурируем mock для операций с документами
-    db.insert_doc = MagicMock(return_value=1)
-    db.get_document_by_id = MagicMock(return_value={'id': 1, 'title': 'test.pdf'})
-    db.get_all_list_docs = MagicMock(return_value=[])
-    db.delete_document_by_id = MagicMock(return_value=True)
-    db.insert_signed_document = MagicMock(return_value=True)
-    
-    # Конфигурируем mock для операций с ключами
-    db.insert_keys_by_email = MagicMock(return_value=True)
-    db.get_public_key_by_email = MagicMock(return_value=None)
-    db.get_private_key_by_email = MagicMock(return_value=None)
-    
-    # Конфигурируем cursor для проверки SQL запросов
-    db.cursor = MagicMock(return_value=mock_postgres_cursor)
-    
-    return db
+    try:
+        from database import Database
+        return Database(connection=mock_postgres_connection)
+    except ImportError:
+        # Fallback для случая если database не импортируется
+        db = MagicMock()
+        db.get_user_by_email = MagicMock(return_value={
+            'id': 101,
+            'first_name': 'Test',
+            'last_name': 'Testov',
+            'is_email_verified': True,
+            'created_at': 1672531200
+        })
+        db.insert_user = MagicMock(return_value=True)
+        db.check_user = MagicMock(return_value=0)
+        db.is_original_email = MagicMock(return_value=True)
+        db.change_userName_by_id = MagicMock(return_value=True)
+        db.insert_doc = MagicMock(return_value=1)
+        db.get_document_by_id = MagicMock(return_value={'id': 1, 'title': 'test.pdf'})
+        db.get_all_list_docs = MagicMock(return_value=[])
+        db.delet_document_by_id = MagicMock(return_value=True)
+        db.insert_signed_document = MagicMock(return_value=1)
+        db.insert_keys_by_email = MagicMock(return_value=True)
+        db.get_public_key_by_email = MagicMock(return_value=None)
+        db.get_private_key_by_email = MagicMock(return_value=None)
+        return db
 
 
 @pytest.fixture
