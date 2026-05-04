@@ -30,8 +30,8 @@ app = FastAPI(
     title="SignPush API",
     description="API для управления документами и электронной подписи PDF файлов",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/api/swagger",
+    redoc_url="/api/redoc"
 )
 db = Database()
 db_redis = DatabaseRedis()
@@ -54,7 +54,7 @@ origins = [
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Список источников
+    allow_origins=["*"],  # Список источников
     allow_credentials=True, # Разрешить Cookies
     allow_methods=["*"],    # Разрешить все методы (GET, POST, etc.)
     allow_headers=["*"],    # Разрешить все заголовки
