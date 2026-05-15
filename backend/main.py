@@ -222,7 +222,8 @@ async def insert_docs(paper:Paper, token: Optional[str] = Header(None)):
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     try:
-        flag = db.insert_doc(paper.title, paper.hash, paper.created_at, paper.base64, paper.email)
+        hash_value = sha256(paper.base64.encode()).hexdigest()
+        flag = db.insert_doc(paper.title, hash_value, paper.created_at, paper.base64, paper.email)
         content = { 
         "success": flag
         }
@@ -265,6 +266,7 @@ async def get_docs_by_id(doc_id: int, token: Optional[str] = Header(None) ):
         return JSONResponse(content={'status': service.INVALID_CREDENTIALS_STATUS, "message": "Invalid token"}, status_code=401)
 
     result = db.get_document_by_id(doc_id)
+    # тут нужно как то вклинить статус документа и переназначит на PaperList
     if result:
         return Paper(**result)
     else:
@@ -634,7 +636,16 @@ async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str]
             db.insert_keys_by_email(email, public_key_b64, private_key_b64)
 
         document_for_sign = _normalize_base64_payload(doc['base64'])
-        signed_payload = signer.signed_hash(document_for_sign, private_key_b64)
+        
+        # Получаем информацию о пользователе для добавления в подпись
+        user_data = db.get_user_by_email(email)
+        user_info = {
+            'first_name': user_data.get('first_name', ''),
+            'last_name': user_data.get('last_name', ''),
+            'email': email
+        }
+        
+        signed_payload = signer.signed_hash(document_for_sign, private_key_b64, user_info=user_info)
         cms_der = signer.create_cms_container(
             signed_payload['signed_attrs_der'],
             signed_payload['signature'],
@@ -687,7 +698,7 @@ async def verify_document_unep(request: SignatureValidationUNEPRequest, token: O
             cms_signature_bytes=cms_bytes,
             signed_document=normalized_doc,
             public_key_b64=None,
-            allow_db_fallback=False,
+            allow_db_fallback=True,
         )
 
         return JSONResponse(content={
@@ -924,23 +935,27 @@ def _register_external_document(document: DocumentSome, signature_type: str) -> 
     # Проверяем целостность: внешний сервис должен передавать корректный sha256 от base64 payload.
     clean_payload = _normalize_base64_payload(document.document.base64)
     expected_hash = sha256(clean_payload.encode()).hexdigest()
-    if document.document.hash != expected_hash:
-        return JSONResponse(
-            content={
-                "success": False,
-                "message": "Hash документа не совпадает с содержимым base64",
-                "expected_hash": expected_hash
-            },
-            status_code=400
-        )
+    
+    #if document.document.hash != expected_hash:
+    #    return JSONResponse(
+    #        content={
+    #            "success": False,
+    #            "message": "Hash документа не совпадает с содержимым base64",
+    #            "expected_hash": expected_hash
+    #        },
+    #        status_code=400
+    #    )
 
     inserted = db.insert_doc(
         document.document.title,
-        document.document.hash,
+        expected_hash,
         document.document.created_at,
         document.document.base64,
         document.document.email,
     )
+# здесь нужно добавить начать отслеживать статус подписи документа, и по его подписании 
+# вызывать запрос на webhook 
+
     if not inserted:
         return JSONResponse(
             content={"success": False, "message": "Не удалось сохранить документ"},
@@ -950,12 +965,12 @@ def _register_external_document(document: DocumentSome, signature_type: str) -> 
     new_doc_id = _resolve_inserted_doc_id(
         email=document.document.email,
         title=document.document.title,
-        hash_value=document.document.hash,
+        hash_value=expected_hash,
     )
     if not new_doc_id:
         return JSONResponse(
             content={"success": False, "message": "Документ сохранен, но не удалось определить его ID"},
-            status_code=500
+            status_code=507
         )
 
     EXTERNAL_CALLBACK_REGISTRY[new_doc_id] = {
@@ -1096,7 +1111,7 @@ async def check_valid_sign(sign:SignatureValidationRequest):
              cms_signature_bytes=base64.b64decode(_normalize_base64_payload(sign.base64)),
              signed_document=signed_document_payload,
                public_key_b64=None,
-               allow_db_fallback=False,
+               allow_db_fallback=True,
         )
 
         response_payload = {

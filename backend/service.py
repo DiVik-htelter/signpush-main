@@ -230,16 +230,17 @@ class SignatureUNEP:
             self.__curve_params
         )
 
-    def __build_signed_attrs(self, message_digest: bytes, public_key: bytes | None = None) -> bytes:
-        """Формирует DER-кодированный signedAttrs по требованиям 63-ФЗ + ГОСТ Р 34.11-2012"""
+    def __build_signed_attrs(self, message_digest: bytes, user_info: dict | None = None) -> bytes:
+        """
+        Формирует DER-кодированный signedAttrs по требованиям 63-ФЗ + ГОСТ Р 34.11-2012
+        
+        Параметры:
+            message_digest: хэш документа (32 байта)
+            user_info: словарь с информацией о пользователе (first_name, last_name, email)
+        """
         message_digest = bytes(message_digest)
         if not isinstance(message_digest, bytes) or len(message_digest) != 32:
             raise ValueError("message_digest должен быть 32-байтным хэшем streebog256")
-
-        if public_key is not None:
-            public_key = bytes(public_key)
-            if len(public_key) != 64:
-                raise ValueError("public_key должен быть 64 байта для ГОСТ 256")
 
         # 1. content-type = id-data
         content_type_attr = cms.CMSAttribute({
@@ -262,16 +263,27 @@ class SignatureUNEP:
 
         attrs_list = [content_type_attr, message_digest_attr, signing_time_attr]
 
-        if public_key is not None:
-            # Нестандартное решение: добавляем публичный ключ в signedAttrs под кастомным OID,
-            # чтобы проверка подписи была независима от аккаунта и БД.
-            public_key_attr = cms.CMSAttribute({
-                'type': cms.CMSAttributeType(self.EMBEDDED_PUBLIC_KEY_OID),
-                'values': [core.OctetString(public_key)]
-            })
-            attrs_list.append(public_key_attr)
-        # атрибуты уже идут в порядке возрастания OID → DER будет каноническим
+        # Добавляем информацию о пользователе в стандартных атрибутах
+        if user_info is not None and isinstance(user_info, dict):
+            # 4. Имя подписанта (OID 1.2.643.7.1.1.1.128)
+            if user_info.get('first_name') or user_info.get('last_name'):
+                signer_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+                signer_name_attr = cms.CMSAttribute({
+                    'type': cms.CMSAttributeType('1.2.643.7.1.1.1.128'),
+                    'values': [core.UTF8String(signer_name)]
+                })
+                attrs_list.append(signer_name_attr)
+            
+            # 5. Email подписанта (OID 1.2.840.113549.1.9.1 - emailAddress)
+            if user_info.get('email'):
+                email_attr = cms.CMSAttribute({
+                    'type': cms.CMSAttributeType('1.2.840.113549.1.9.1'),
+                    'values': [core.IA5String(user_info.get('email'))]
+                })
+                attrs_list.append(email_attr)
 
+        # атрибуты будут отсортированы по OID при DER-кодировании
+        # для получения канонического формата (требуется для проверки подписи)
         class SignedAttributes(SetOf):
             _child_spec = cms.CMSAttribute
 
@@ -322,7 +334,7 @@ class SignatureUNEP:
             # Проверка на соответствие ключей
             digest = self.hash_document("testqwertyuioqwertyuio"*10)
 
-            digest_attrs = self.__build_signed_attrs(digest, public_key=public_key)
+            digest_attrs = self.__build_signed_attrs(digest)
             digest_attrs_hash = self.hash_document(digest_attrs, encode_flag=False)
 
             signature = self.__sign_obj.sign(private_key, digest_attrs_hash)
@@ -334,7 +346,7 @@ class SignatureUNEP:
             private_key_b64 = base64.b64encode(private_key).decode()
             public_key_b64 = base64.b64encode(public_key).decode()
 
-            #self.__save_keys_to_db(KeyPair(private_key=private_key_b64, public_key=public_key_b64))
+            self.__save_keys_to_db(KeyPair(private_key=private_key_b64, public_key=public_key_b64))
             
             return  public_key_b64, private_key_b64
         except Exception as e:
@@ -342,26 +354,27 @@ class SignatureUNEP:
             return None
 
 
-    def signed_hash(self, document: str, private_key_b64: str) -> dict:
+    def signed_hash(self, document: str, private_key_b64: str, user_info: dict | None = None) -> dict:
         """
         Шифрует (подписывает) signedAttrs документа приватным ключом.
         
+        Параметры:
+            document: документ для подписи
+            private_key_b64: приватный ключ в base64
+            user_info: информация о пользователе (first_name, last_name, email)
         """
         try:         
-            #private_key_b64 = self.__db.get_private_key_by_email(self.__email)  
             if private_key_b64 is None:
                 raise ValueError("Пользователь не имеет приватного ключа для подписи")
             private_key = base64.b64decode(private_key_b64)
-            public_key = self.__sign_obj.public_key_generate(private_key)
             
             doc_hash = self.hash_document(document)
-            signed_attrs_der = self.__build_signed_attrs(doc_hash, public_key=public_key)
+            signed_attrs_der = self.__build_signed_attrs(doc_hash, user_info=user_info)
             signed_attrs_hash = self.hash_document(signed_attrs_der, encode_flag=False)
             
             signature = self.__sign_obj.sign(bytearray(private_key), signed_attrs_hash)
 
             logging.info(f"Document signed successfully for user {self.__email}")
-
 
             return {
                 'signature': signature,           # raw bytes подписи
@@ -435,17 +448,6 @@ class SignatureUNEP:
 
         return attrs_list
 
-    def __extract_embedded_public_key(self, signed_attrs: cms.CMSAttributes) -> bytes | None:
-        """Извлекает публичный ключ из signedAttrs по кастомному OID (если присутствует)."""
-        for attr in signed_attrs:
-            attr_oid = attr['type'].dotted if hasattr(attr['type'], 'dotted') else str(attr['type'])
-            if attr_oid == self.EMBEDDED_PUBLIC_KEY_OID:
-                key_bytes = attr['values'][0].native
-                if not isinstance(key_bytes, bytes) or len(key_bytes) != 64:
-                    raise ValueError("Встроенный публичный ключ в signedAttrs невалиден")
-                return key_bytes
-        return None
-
     def verify_cms_container(
         self,
         cms_signature_bytes: bytes,
@@ -489,17 +491,17 @@ class SignatureUNEP:
             signed_attrs = signer_info['signed_attrs']
             raw_signature = signer_info['signature'].native
 
-            embedded_public_key = self.__extract_embedded_public_key(signed_attrs)
-            public_key_source = 'signed_attrs'
-            if embedded_public_key is not None:
-                public_key = embedded_public_key
-            else:
-                public_key_source = 'external'
-                if not public_key_b64 and allow_db_fallback:
-                    public_key_b64 = self.__db.get_public_key_by_email(self.__email)
-                if not public_key_b64:
-                    raise ValueError("Не удалось получить публичный ключ для проверки подписи")
-                public_key = base64.b64decode(public_key_b64)
+            # Получаем публичный ключ из параметра или из БД
+            public_key_source = 'external'
+            if not public_key_b64 and allow_db_fallback:
+                logging.debug(f"Attempting to get public key for email: {self.__email}")
+                public_key_b64 = self.__db.get_public_key_by_email(self.__email)
+                if public_key_b64:
+                    public_key_source = 'database'
+                    logging.info(f"Public key retrieved from database for {self.__email}")
+            if not public_key_b64:
+                raise ValueError(f"Не удалось получить публичный ключ для проверки подписи (email: {self.__email})")
+            public_key = base64.b64decode(public_key_b64)
 
             digest_oid = signer_info['digest_algorithm']['algorithm'].dotted
             sign_oid = signer_info['signature_algorithm']['algorithm'].dotted
@@ -525,11 +527,9 @@ class SignatureUNEP:
             if sid_type == 'subject_key_identifier':
                 sid_match = sid.chosen.native == expected_ski
 
-            # Нестандартное решение: проверяем подпись по двум DER-представлениям атрибутов.
+            # Проверяем подпись по двум DER-представлениям атрибутов.
             # Причина: в ряде CMS-реализаций signedAttrs может сериализоваться как
             # контекстно-тегированный блок ([0]) или как "чистый" SET OF.
-            # В вашем create_cms_container подпись рассчитывается над "чистым" SET OF,
-            # поэтому сначала проверяем untag(), затем fallback на dump().
             signed_attrs_der_untagged = signed_attrs.untag().dump()
             signed_attrs_hash_untagged = self.hash_document(signed_attrs_der_untagged, encode_flag=False)
             signature_valid = self.__sign_obj.verify(public_key, signed_attrs_hash_untagged, raw_signature)
@@ -576,7 +576,7 @@ class SignatureUNEP:
             return result
 
         except Exception as e:
-            logging.exception("Exception in SignatureUNEP.verify_signature:")
+            logging.exception("Exception in SignatureUNEP.verify_cms_container:")
             return {
                 'is_valid': False,
                 'checks': {
@@ -591,12 +591,10 @@ class SignatureUNEP:
                 'attrs': [],
                 'error': str(e),
             }
-        
 
-# ОИДы для ГОСТ (обязательны для валидации)
+# ОИДы для ГОСТ (для валидации)
     GOST_3411_2012_256_OID = '1.2.643.7.1.1.2.2'
     GOST_3410_2012_256_OID = '1.2.643.7.1.1.1.1'
-    EMBEDDED_PUBLIC_KEY_OID = '1.2.643.7.1.0.99999.1'
 
     def create_cms_container(
         self,

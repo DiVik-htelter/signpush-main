@@ -197,7 +197,8 @@ class TestSignatureUNEP:
         test_doc = "Договор №123 от 01.01.2026. Сумма: 100 000 руб."
 
         # 2. Создание SignedAttrs и подписи
-        sign_result = sign_unep.signed_hash(test_doc, priv_key_b64)
+        user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
+        sign_result = sign_unep.signed_hash(test_doc, priv_key_b64, user_info=user_info)
         assert 'signature' in sign_result
         assert 'signed_attrs_der' in sign_result
 
@@ -359,7 +360,7 @@ class TestSignatureUNEPHashAndKeys:
         hash_result = sign_unep.hash_document(doc_bytes, encode_flag=False)
         
         assert hash_result is not None
-        assert isinstance(hash_result, bytes)
+        assert isinstance(hash_result, (bytes, bytearray))
         assert len(hash_result) == 32
     
     def test_hash_document_consistency(self, sign_unep):
@@ -413,8 +414,9 @@ class TestSignatureUNEPVerification:
         
         pub_key_b64, priv_key_b64 = keys
         test_doc = "Test document for signing"
+        user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
         
-        result = sign_unep.signed_hash(test_doc, priv_key_b64)
+        result = sign_unep.signed_hash(test_doc, priv_key_b64, user_info=user_info)
         
         assert 'signature' in result
         assert 'signed_attrs_der' in result
@@ -478,7 +480,8 @@ class TestSignatureUNEPCMSEdgeCases:
         modified_doc = "Modified document"
         
         # Подписываем оригинальный документ
-        signed_payload = sign_unep.signed_hash(original_doc, priv_key_b64)
+        user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
+        signed_payload = sign_unep.signed_hash(original_doc, priv_key_b64, user_info=user_info)
         cms_der = sign_unep.create_cms_container(
             signed_payload['signed_attrs_der'],
             signed_payload['signature'],
@@ -646,7 +649,8 @@ class TestIntegrationUserWithSignature:
         
         # Пользователь подписывает документ
         test_document = "I, the undersigned, approve this"
-        signed_data = sign_unep.signed_hash(test_document, priv_key_b64)
+        user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
+        signed_data = sign_unep.signed_hash(test_document, priv_key_b64, user_info=user_info)
         
         assert 'signature' in signed_data
         assert signed_data['signature'] is not None

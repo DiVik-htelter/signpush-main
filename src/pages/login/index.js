@@ -43,25 +43,8 @@ function Login() {
 
         } catch (err) {
             console.log(err);
-
             setErrorMessage('Что-то пошло не так!');
-
             setDisabled(false);
-
-//// этот код нужен для работы фронтенда, даже если бекенд не запущен
-//            let expires = new Date()
-//            expires.setTime(expires.getTime() + 1000000);
-//            setCookie('user', user, { path: '/',  expires});
-//            setCookie('token', response?.data?.token || '213', { path: '/',  expires});
-
-//            setUser('');
-//            setPassword('');
-//            setAuth({user});
-
-//            setDisabled(false);
-//            navigate(from, { replace: true });
-////
-
             return;
         }
 
@@ -94,6 +77,7 @@ function Login() {
     return (
         <div className="">
             <header>
+                <script src="https://smartcaptcha.cloud.yandex.ru/captcha.js" defer></script>
                 <a href="/">
                     <img id="header_logo" src="logo_white.png" alt="SignPush"></img>
                 </a>
@@ -121,6 +105,11 @@ function Login() {
                                 <p className="error-message text-danger" align="center">{errMsg}</p>
                             </div>
 
+                            <div
+                                id="captcha-container"
+                                class="smart-captcha"
+                                data-sitekey="<ключ_клиента>"
+                            ></div>
                             <button disabled={isLoginActive} className="btn btn-primary modal-login-submit" id="sign-in">
                                 Продолжить
                             </button>

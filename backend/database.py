@@ -491,17 +491,19 @@ class Database:
       raise ConnectionError("No active database connection")
     try:
       with self.__connection.cursor() as cursor:
+        logging.debug(f"Querying public_key for email: {email}")
         cursor.execute("""
           SELECT public_key 
           FROM users 
           WHERE email = %s;
         """, (email,))
         result = cursor.fetchone()
+        logging.debug(f"Query result for {email}: {result}")
         if result and result[0]:
           logging.info(f' Public key for user {email} retrieved successfully')
           return result[0]
         else:
-          logging.error(f'Public key for user {email} not found')
+          logging.error(f'Public key for user {email} not found (result={result})')
           return None
     except Exception as ex:
       logging.exception(f"Error in get_public_key_by_email: {ex}")
