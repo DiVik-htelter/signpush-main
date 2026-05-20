@@ -2,6 +2,10 @@
 
 **SignPush** — полнофункциональное веб-приложение для управления электронными PDF-документами с поддержкой цифрового подписания. Быстрая загрузка, просмотр, подписание и верификация документов.
 
+### ⚡ Быстрый старт
+- 🐳 **Docker**: `docker-compose up -d` — развертывание всех сервисов за 2 минуты
+- 💻 **Локально**: `npm install && npm start` (frontend) + `pip install -r requirements.txt && python main.py` (backend) и стандартный образ контейнера redis:latest в докере, nginx не обязателен
+
 ---
 
 ## Основные возможности
@@ -115,18 +119,36 @@ signpush-main/
 │   ├── response_request_classes.py  # Pydantic модели для запросов/ответов API
 │   ├── test.py                      # Тесты
 │   ├── requirements.txt             # Зависимости Python
-│   └── create_full_bd_xray.sql      # SQL схема для базы данных
+│   ├── .env                         # Переменные окружения (NOT в репозитории)
+│   ├── Dockerfile                   # Docker конфигурация backend
+│   └── full_schema.sql              # SQL схема для базы данных
 │
-├── 📁 docs/                         # документация проекта
-│   ├── AUTH_STATUS_CHECK_IMPLENTATION.md
-│   ├── AXIOS_AUTO_HEADERS.md        # интерцептор, который вставляет в заголовки запросов токен и почту 
-│   └── THIRD_PARTY_CALLBACK_API.md  # Интеграция API для 1С и других внешних сервисов
+├── 📁 docs/                         # Документация проекта
+│   ├── AUTH_STATUS_CHECK_IMPLENTATION.md    # Реализация проверки статуса аутентификации
+│   ├── AXIOS_AUTO_HEADERS.md                # Интерцептор для добавления токена в заголовки
+│   └── THIRD_PARTY_CALLBACK_API.md         # Интеграция API для 1С и внешних сервисов
 │
-├── 📁 build/                        # Собранное приложение (после npm build)
+├── 📁 nginx/                        # Nginx конфигурация для production
+│   ├── default.conf                 # Production конфигурация
+│   └── Dockerfile                   # Docker образ Nginx
 │
+├── 📁 nginx-dev/                    # Nginx конфигурация для разработки
+│   ├── default.conf
+│   └── Dockerfile
+│
+├── 📁 build/                        # Собранное production приложение (результат npm build)
+│
+├── .env                             # Переменные окружения проекта (NOT в репозитории)
+├── .env.example                     # Пример .env файла для разработки
+├── .gitignore                       # Git исключения (включает .env)
+├── docker-compose.yml               # Конфигурация Docker Compose
+├── Dockerfile                       # Docker образ для основного сервиса
+├── deploy.sh                        # Скрипт для развертывания
 ├── package.json                     # Зависимости и скрипты npm
+├── package-lock.json                # Блокировка версий npm зависимостей
 ├── README.md                        # Этот файл
-├── IMPROVEMENTS.md                  # Список улучшений
+├── DEPLOYMENT_GUIDE.md              # Подробное руководство развертывания
+├── PRE_DEPLOYMENT_CHECKLIST.md      # Чеклист перед развертыванием
 └── MOBILE_GUIDE.md                  # Руководство для мобильных устройств
 ```
 
@@ -136,8 +158,177 @@ signpush-main/
 - **npm** >= 6.0
 - **Python** >= 3.8 (для backend)
 - **PostgreSQL** >= 12 (для базы данных)
+- **Redis** (для кэширования и сессий)
+- **Docker** и **Docker Compose** (для контейнеризации и развертывания)
 
+---
 
+## 🐳 Docker и Развертывание
+
+Проект полностью готов к развертыванию с использованием **Docker** и **Docker Compose**. Все сервисы (Frontend, Backend, PostgreSQL, Redis, Nginx) упакованы в контейнеры для быстрого и надежного развертывания.
+
+### Быстрый старт через Docker Compose
+
+1. **Убедитесь, что установлены Docker и Docker Compose:**
+   ```bash
+   docker --version
+   docker-compose --version
+   ```
+
+2. **Переименуйте или скопируйте файл окружения:**
+   ```bash
+   cp .env.example .env  # если есть пример
+   # или отредактируйте существующий .env файл
+   ```
+
+3. **Запустите все сервисы:**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Остановка сервисов:**
+   ```bash
+   docker-compose down
+   ```
+
+5. **Просмотр логов:**
+   ```bash
+   docker-compose logs -f backend   # логи backend
+   docker-compose logs -f db        # логи базы данных
+   docker-compose logs -f redis     # логи Redis
+   ```
+
+### Сервисы Docker Compose
+
+| Сервис | Image | Порты | Описание |
+|--------|-------|-------|---------|
+| **db** | postgres:15-alpine | 5432 | PostgreSQL база данных |
+| **redis** | redis:alpine | 6379 | Redis для кэширования |
+| **backend** | Custom (./backend) | 8000 | FastAPI backend сервер |
+| **nginx** | Custom (./nginx) | 80, 443 | Nginx обратный прокси и сервер статики |
+
+---
+
+## 🔧 Конфигурация через переменные окружения (.env)
+
+Проект использует файлы `.env` для конфигурации подключения к базе данных и Redis. Эти файлы содержат чувствительные данные и **не должны коммититься в репозиторий**.
+
+### Основной .env файл (корневой каталог)
+
+```env
+# PostgreSQL Database Configuration
+DB_USER=postgres
+DB_PASSWORD=your_secure_password
+DB_NAME=signpush
+DB_HOST=localhost
+DB_PORT=5432
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Backend Configuration
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
+DEBUG=false
+```
+
+### Backend .env файл (backend/.env)
+
+```env
+# Database
+DATABASE_URL=postgresql://postgres:your_secure_password@localhost:5432/signpush
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# FastAPI
+API_TITLE=SignPush API
+API_VERSION=1.0.0
+
+# Security
+SECRET_KEY=your_super_secret_key_here
+ALGORITHM=HS256
+
+# CORS
+CORS_ORIGINS=["http://localhost:3000", "http://localhost", "https://yourdomain.com"]
+
+# Email Configuration (если используется)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SENDER_EMAIL=your-email@gmail.com
+SENDER_PASSWORD=your_app_password
+```
+
+### Структура окружения при запуске через Docker Compose
+
+При использовании Docker Compose переменные из `.env` автоматически:
+- Передаются в контейнер PostgreSQL для инициализации БД
+- Используются backend сервисом для подключения к БД и Redis
+- Доступны для других сервисов через `env_file` директиву
+
+### Важно!
+
+⚠️ **Никогда не коммитьте `.env` файлы с реальными паролями!**
+
+- Добавлены в `.gitignore`
+- Для разработки используйте локальные значения
+- В production используйте безопасные управление секретами (e.g., Docker Secrets, AWS Secrets Manager)
+- Создавайте примеры файлов (`.env.example`) без чувствительных данных
+
+---
+
+## 🚀 Локальное развертывание (для разработки)
+
+Для локальной разработки без Docker выполните следующие шаги:
+
+### Backend Setup
+
+1. **Установите зависимости Python:**
+   ```bash
+   cd backend
+   python -m venv venv
+   # Для Windows:
+   venv\Scripts\activate
+   # Для Linux/macOS:
+   source venv/bin/activate
+   
+   pip install -r requirements.txt
+   ```
+
+2. **Создайте .env файл в папке backend:**
+   ```bash
+   # backend/.env
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/signpush
+   REDIS_URL=redis://localhost:6379/0
+   SECRET_KEY=your_secret_key
+   ```
+
+3. **Убедитесь, что PostgreSQL и Redis запущены на localhost**, затем запустите backend:
+   ```bash
+   python main.py
+   # Backend будет доступен на http://localhost:8000
+   # API документация на http://localhost:8000/docs
+   ```
+
+### Frontend Setup
+
+1. **Установите зависимости Node.js:**
+   ```bash
+   npm install
+   ```
+
+2. **Запустите development сервер:**
+   ```bash
+   npm start
+   # Frontend будет доступен на http://localhost:3000
+   ```
+
+3. **Для production сборки:**
+   ```bash
+   npm run build
+   ```
 
 ---
 
@@ -197,6 +388,58 @@ signpush-main/
 
 Подробные форматы запросов/ответов и примеры cURL:
 - `docs/THIRD_PARTY_CALLBACK_API.md`
+
+---
+
+## 📌 Troubleshooting
+
+### Docker Compose проблемы
+
+**Ошибка: "Port already in use"**
+```bash
+# Измените порты в docker-compose.yml или используйте другой порт
+docker-compose down
+# Отредактируйте ports в docker-compose.yml
+docker-compose up -d
+```
+
+**Ошибка подключения к PostgreSQL**
+```bash
+# Проверьте, что db контейнер здоров
+docker-compose ps
+# Посмотрите логи
+docker-compose logs db
+```
+
+**Redis connection refused**
+```bash
+# Убедитесь, что Redis контейнер запущен
+docker-compose logs redis
+docker-compose restart redis
+```
+
+### Локальная разработка
+
+**Ошибка импорта модулей Python**
+```bash
+# Убедитесь, что виртуальное окружение активировано
+source venv/bin/activate  # Linux/macOS
+# или
+venv\Scripts\activate     # Windows
+```
+
+**PostgreSQL не запущен локально**
+```bash
+# Для Windows (установка с chocolatey):
+choco install postgresql
+
+# Для macOS:
+brew install postgresql@15
+brew services start postgresql@15
+
+# Проверита подключение:
+psql -U postgres -d postgres
+```
 
 ---
 
