@@ -5,8 +5,12 @@
     align-items: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     height: 70px;
-    position: relative;
-    z-index: 998;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1002;
 }
 
 .header-logo {
@@ -28,16 +32,16 @@
 
 /* На десктопе (769px и больше) - header начинается с sidebar */
 @media (min-width: 769px) {
+    /* header остаётся на всю ширину экрана (фиксирован сверху)
+       Контент будет сдвигаться вниз с помощью padding у .layout-content */
     .header {
-        margin-left: 280px;
-        transition: margin-left 0.3s ease;
+        transition: none;
         padding: 10px 20px;
         height: 70px;
     }
 
-    /* Класс для свернутой боковой панели */
     .header.sidebar-collapsed {
-        margin-left: 80px;
+        /* не смещаем header, только контент/футер управляются отдельно */
     }
 
     .logo {

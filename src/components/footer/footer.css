@@ -1,0 +1,223 @@
+/* ========== FOOTER STYLES ========== */
+
+.footer {
+    background-color: #343a40;
+    color: #e9ecef;
+    padding: 40px 20px 20px 20px;
+    margin-top: 60px;
+    border-top: 1px solid #495057;
+    width: 100%;
+    left: 0;
+    box-sizing: border-box;
+    z-index: 900; /* ниже, чем сайдбар (1000) чтобы сайдбар накрывал footer при открытом меню */
+    position: relative;
+    overflow: hidden;
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 30px;
+    max-width: 1400px;
+    margin: 0 auto 30px;
+    background-color: #343a40;
+}
+
+.footer-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background-color: #343a40;
+}
+
+.footer-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #007bff;
+}
+
+.footer-description {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #adb5bd;
+    margin: 0;
+}
+
+.footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-color: #343a40;
+}
+
+.footer-links li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.footer-links a {
+    color: #adb5bd;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-links a:hover {
+    color: #007bff;
+    transform: translateX(3px);
+}
+
+.footer-links i {
+    font-size: 16px;
+    color: #007bff;
+}
+
+.footer-links span {
+    color: #adb5bd;
+}
+
+.footer-divider {
+    height: 1px;
+    background-color: #495057;
+    margin: 20px 0;
+    width: 100%;
+}
+
+.footer-bottom {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+    background-color: #343a40;
+    text-align: center;
+}
+
+.footer-copyright {
+    font-size: 14px;
+    color: #adb5bd;
+    margin: 0;
+}
+
+.footer-version {
+    font-size: 12px;
+    color: #6c757d;
+    margin: 0;
+}
+
+/* ========== DESKTOP (769px и больше) ========== */
+@media (min-width: 769px) {
+    .footer {
+        /* На десктопе подстраиваем footer под состояние sidebar:
+           - по умолчанию footer остаётся во всю ширину (лежат под сайдбаром)
+           - когда передан класс .sidebar-collapsed — сдвигаем содержимое вправо
+        */
+        padding: 50px 30px 30px 30px;
+        transition: margin-left 0.3s ease, padding 0.3s ease;
+    }
+
+    .footer-content {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 40px;
+    }
+}
+
+/* Когда сайдбар свернут (передаём класс через Layout) — сдвигаем footer содержимое
+   чтобы он был полностью видим и не накрывался узким сайдбаром */
+@media (min-width: 769px) {
+    .footer.sidebar-collapsed {
+        margin-left: 80px;
+    }
+}
+
+/* ========== ПЛАНШЕТЫ (769px до 1024px) ========== */
+@media (max-width: 1024px) {
+    .footer-content {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 30px;
+    }
+}
+
+/* ========== СМАРТФОНЫ (до 768px) ========== */
+@media (max-width: 768px) {
+    .footer {
+        margin-left: 0;
+        margin-top: 40px;
+        padding: 30px 15px 20px 15px;
+        /* Убедимся, что фон footer заполняет область и не «обрывается» */
+        min-height: 280px;
+        box-shadow: inset 0 40px 0 rgba(0,0,0,0.02);
+    }
+
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 25px;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .footer-title {
+        font-size: 15px;
+    }
+
+    .footer-description {
+        font-size: 13px;
+    }
+
+    .footer-links {
+        gap: 10px;
+    }
+
+    .footer-links li {
+        font-size: 13px;
+    }
+
+    .footer-copyright,
+    .footer-version {
+        font-size: 12px;
+    }
+}
+
+/* ========== ОЧЕНЬ МАЛЫЕ ЭКРАНЫ (до 480px) ========== */
+@media (max-width: 480px) {
+    .footer {
+        padding: 25px 12px 15px 12px;
+        margin-top: 30px;
+    }
+
+    .footer-content {
+        gap: 20px;
+    }
+
+    .footer-section {
+        gap: 12px;
+    }
+
+    .footer-title {
+        font-size: 14px;
+        padding-bottom: 8px;
+    }
+
+    .footer-links {
+        gap: 8px;
+    }
+}

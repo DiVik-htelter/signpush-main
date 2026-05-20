@@ -2,9 +2,12 @@ import axios from "axios";
 import Cookies from 'js-cookie';
 
 const instance = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api/' // для локальной разработки
-    //baseURL: '/api/'
+    // По умолчанию используем относительный /api/ (через proxy) для корректной работы httpOnly cookies
+    baseURL: process.env.REACT_APP_API_BASE_URL || '/api/'
 });
+
+// Отправлять cookies (httpOnly refresh-token) по умолчанию
+instance.defaults.withCredentials = true;
 
 let navigateFunction = null;
 let currentPath = '/';
@@ -29,12 +32,7 @@ instance.interceptors.request.use(
             config.headers['token'] = -1;
         }
         
-        // Добавляем email в заголовок, если существует
-        if (Cookies.get('user')) {
-            config.headers['email'] = Cookies.get('user');
-        } else {
-            config.headers['email'] = -1;
-        }
+        // Ранее в заголовок добавляли email пользователя — больше не требуется
         
         // Устанавливаем Content-Type по умолчанию
         if (!config.headers['Content-Type']) {
@@ -67,12 +65,41 @@ instance.interceptors.response.use(
         return response;
     },
     (error) => {
-        // Обработка ошибок сети или других ошибок
+        // Автоматически пробуем обновить access token при 401
+        const originalRequest = error.config;
+        const isRefreshRequest = originalRequest?.url?.includes('auth/refresh');
+        if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
+            originalRequest._retry = true;
+            // Попытка обновить токен через refresh endpoint
+            return instance.post('auth/refresh')
+                .then(res => {
+                    if (res.data && res.data.token) {
+                        // Сохраняем новый access token и повторяем запрос
+                        Cookies.set('token', res.data.token);
+                        originalRequest.headers['token'] = res.data.token;
+                        return instance(originalRequest);
+                    }
+                    // иначе редирект на логин
+                    Cookies.remove('token');
+                    Cookies.remove('user');
+                    if (navigateFunction && currentPath !== '/login' && currentPath !== '/registration') {
+                        navigateFunction('/login', { replace: true });
+                    }
+                    return Promise.reject(error);
+                })
+                .catch(err => {
+                    Cookies.remove('token');
+                    Cookies.remove('user');
+                    if (navigateFunction && currentPath !== '/login' && currentPath !== '/registration') {
+                        navigateFunction('/login', { replace: true });
+                    }
+                    return Promise.reject(err);
+                });
+        }
+        // Для прочих случаев
         if (error.response?.status === 401 || error.response?.status === 403) {
-            // Если ошибка авторизации, удаляем токен
             Cookies.remove('token');
             Cookies.remove('user');
-            
             if (navigateFunction && currentPath !== '/login' && currentPath !== '/registration') {
                 navigateFunction('/login', { replace: true });
             }

@@ -112,8 +112,10 @@
 .sidebar-user-email {
     font-size: 13px;
     color: #6c757d;
-    word-break: break-all;
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sidebar-nav {
@@ -293,12 +295,13 @@
 
     .sidebar-header {
         position: static;
-        padding: 0 20px 20px 20px;
+        padding: 15px 20px 20px 20px;
         border: none;
-        background-color: transparent;
+        background-color: white;
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
     }
 
     .sidebar-header-top {
@@ -333,11 +336,11 @@
     .sidebar {
         position: fixed;
         left: -100%;
-        top: 60px;
+        top: 0;
         width: 100%;
         max-width: 320px;
-        height: calc(100vh - 60px);
-        padding-top: 20px;
+        height: 100vh;
+        padding-top: 0;
         transition: left 0.3s ease;
         border-right: 1px solid #dee2e6;
         display: flex;
@@ -361,9 +364,22 @@
 
     .sidebar-header {
         position: static;
-        padding: 15px 20px 20px 20px;
+        padding: 20px 20px 20px 20px;
         border: none;
-        background-color: transparent;
+        background-color: white;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .sidebar-user-email {
+        display: block !important;
+        font-size: 13px;
+        color: #212529;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 500;
     }
 
     .sidebar-nav {

@@ -11,12 +11,24 @@
     position: relative;
 }
 
+/* Отступ сверху для фиксированного header */
+.layout-content {
+    padding-top: 70px;
+}
+
 .layout-content {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-width: 0;
-    overflow-y: auto;
+    overflow-y: visible;
+}
+
+/* Контент должен быть ниже footer по z-index чтобы footer был виден
+   когда сайдбар закрыт. Создаём локальный stacking context. */
+.layout-content {
+    position: relative;
+    z-index: 800;
 }
 
 .layout-content .container {
@@ -49,6 +61,7 @@
 @media (max-width: 768px) {
     .layout-content {
         margin-left: 0;
+        padding-top: 60px; /* header меньше на мобилке */
     }
 
     .layout-content .container {

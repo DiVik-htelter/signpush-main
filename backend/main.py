@@ -1,11 +1,13 @@
 import base64
+import os
+import uuid
 import uvicorn
 import logging 
 from time import time
 from hashlib import sha256
 from typing import List, Optional, Dict, Any
 from urllib.parse import urlparse
-from fastapi import FastAPI, BackgroundTasks, Header
+from fastapi import FastAPI, BackgroundTasks, Header, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,32 +31,30 @@ logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(m
 app = FastAPI(
     title="SignPush API",
     description="API для управления документами и электронной подписи PDF файлов",
-    version="1.0.0",
+    version="1.1.0",
     docs_url="/api/swagger",
     redoc_url="/api/redoc"
 )
 db = Database()
 db_redis = DatabaseRedis()
 
-# Разрешенные источники
-# docker 
-origins = [
-    "https://localhost",      # Доступ через Nginx (стандартный порт 80)
-    "https://127.0.0.1",
-    "http://localhost",      # Доступ через Nginx (стандартный порт 80)
-    "http://127.0.0.1",
+# Разрешенные источники (для credentials нельзя использовать "*")
+_default_origins = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "http://localhost:8000",
-    "https://sign-push.ru",   # Продакшн домен
-    "https://www.sign-push.ru",
-    "http://195.208.119.146",  # VPS по IP
-    "http://sign-push.ru"     # HTTP fallback
+    "http://127.0.0.1:8000",
 ]
+origins_env = os.getenv("CORS_ORIGINS", "").strip()
+origins = [o.strip() for o in origins_env.split(",") if o.strip()] or _default_origins
+
+cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").lower()
+cookie_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Список источников
+    allow_origins=origins,  # Список источников
     allow_credentials=True, # Разрешить Cookies
     allow_methods=["*"],    # Разрешить все методы (GET, POST, etc.)
     allow_headers=["*"],    # Разрешить все заголовки
@@ -110,32 +110,103 @@ class AuthResponse(BaseModel):
 
 @app.post("/api/auth/", response_model=AuthResponse, summary="Аутентификация пользователя", tags=["Аутентификация"])
 async def chek_login(old_user: oldUser):
-  """
-  Проверка учетных данных и выдача токена аутентификации
-  
-  **Коды статуса ответа:**
-  - 0: Успешная аутентификация
-  - 2: Неверный логин или пароль
-  - 3: Ошибка подключения к базе данных
-  """
-  content = {
-      "status": service.GENERAL_ERROR_STATUS,
-      "token": -1,
-      "message": "Ошибка сервера"
-  }
-  
-  try:
-    user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
-    content = user.chek_auth(old_user.password)
-  except Exception as exept:
-    logging.exception(f"Ошибка непосредственно в роуте chek_login(): {exept}") 
+    """
+    Проверка учетных данных и выдача токена аутентификации
+    """
     content = {
-        "status": service.GENERAL_ERROR_STATUS,
-        "token": -1,
-        "message": f"Ошибка при аутентификации: {str(exept)}"
+            "status": service.GENERAL_ERROR_STATUS,
+            "token": -1,
+            "message": "Ошибка сервера"
     }
-  
-  return JSONResponse(content=content, status_code=200)
+
+    try:
+        user = service.User(email=old_user.mail, db_redis=db_redis, db=db)
+        content = user.chek_auth(old_user.password)
+    except Exception as exept:
+        logging.exception(f"Ошибка непосредственно в роуте chek_login(): {exept}")
+        content = {
+                "status": service.GENERAL_ERROR_STATUS,
+                "token": -1,
+                "message": f"Ошибка при аутентификации: {str(exept)}"
+        }
+
+    # Если аутентификация успешна и есть refresh_token, сохраняем его в httpOnly cookie
+    try:
+        resp_content = dict(content)
+        # Если пришёл refresh_token — отправим его только в httpOnly cookie и удалим из тела ответа
+        refresh_val = None
+        if resp_content.get("status") == service.SUCCESS_STATUS and resp_content.get("refresh_token"):
+            refresh_val = resp_content.pop("refresh_token", None)
+
+        response = JSONResponse(content=resp_content, status_code=200)
+        if refresh_val:
+            # Устанавливаем httpOnly cookie (samesite/secure настраиваются через env)
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_val,
+                httponly=True,
+                secure=cookie_secure,
+                samesite=cookie_samesite,
+                max_age=7*24*3600,
+                path='/'
+            )
+
+        return response
+    except Exception as ex:
+        logging.exception(f"Error setting refresh cookie: {ex}")
+        return JSONResponse(content=content, status_code=200)
+
+
+@app.post("/api/auth/refresh", summary="Обновление access токена по refresh token", tags=["Аутентификация"])
+async def refresh_token(request: Request):
+    """Endpoint для обновления access токена. Ожидает httpOnly cookie `refresh_token`."""
+    try:
+        refresh_val = request.cookies.get('refresh_token')
+        if not refresh_val:
+            return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "Refresh token missing"}, status_code=401)
+
+        # Найдём email по значению refresh токена
+        email = db_redis.get_email_by_refresh_token(refresh_val)
+        if not email:
+            return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "Invalid refresh token"}, status_code=401)
+
+        # Проверим валидность токена
+        if not db_redis.check_refresh_token(email, refresh_val):
+            return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "Refresh token invalid or expired"}, status_code=401)
+
+        # Создадим новый access token
+        user = service.User(email=email, db=db, db_redis=db_redis, flag_pg=True)
+        user_id = getattr(user, '_User__id', None)
+        if not user_id:
+            return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "User lookup failed"}, status_code=401)
+
+        new_access = user.create_jwt(user_id)
+        if new_access is None:
+            return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "Failed to create access token"}, status_code=500)
+
+        # По хорошей практике — ротация refresh токена
+        try:
+            db_redis.delete_refresh_token(email)
+        except Exception:
+            logging.exception("Failed to delete old refresh token during rotation")
+        new_refresh = str(uuid.uuid4())
+        db_redis.save_refresh_token(email, new_refresh)
+
+        resp = JSONResponse(content={"status": service.SUCCESS_STATUS, "token": new_access, "message": "Token refreshed"}, status_code=200)
+        # Устанавливаем новый refresh token в httpOnly cookie
+        resp.set_cookie(
+            key="refresh_token",
+            value=new_refresh,
+            httponly=True,
+            secure=cookie_secure,
+            samesite=cookie_samesite,
+            max_age=7*24*3600,
+            path='/'
+        )
+        return resp
+    except Exception as ex:
+        logging.exception(f"Exception in refresh_token endpoint: {ex}")
+        return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "Error during token refresh"}, status_code=500)
 
 
 class Paper(BaseModel):

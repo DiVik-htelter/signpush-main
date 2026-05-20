@@ -97,7 +97,7 @@ class User:
             logging.exception("Database update failed:")
             return False
 
-    def __create_jwt(self, id:str) -> str | None: 
+    def create_jwt(self, id:str) -> str | None: 
         """Метод для генерации JWT токена """
         try:
             time_now = datetime.now(timezone.utc).timestamp()
@@ -152,7 +152,7 @@ class User:
             match response:
                 case 0:
                     id_user = self.__db.get_user_by_email(self.__email)['id']
-                    access_token = self.__create_jwt(id_user)
+                    access_token = self.create_jwt(id_user)
                     refresh_token = self.__create_refresh_token()
                     if access_token is None or refresh_token is None:
                         logging.error(f"Token generation failed for user {self.__email}")

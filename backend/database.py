@@ -583,6 +583,11 @@ class DatabaseRedis:
         "refresh_token": refresh_token
       }
       self.r.setex(f"refresh_token:{email}", expire_seconds, json.dumps(token_data))
+      # Также сохраняем обратную маппинг от значения токена к email, чтобы по cookie можно было быстро найти email
+      try:
+        self.r.setex(f"refresh_token_value:{refresh_token}", expire_seconds, email)
+      except Exception:
+        logging.exception("Failed to set reverse mapping for refresh token")
       logging.info(f" Refresh token for user {email} saved successfully")
       return True
     except Exception as ex:
@@ -611,6 +616,18 @@ class DatabaseRedis:
     """Удаляет refresh токен"""
     try:
       self.r.delete(f"refresh_token:{email}")
+      # также удаляем обратную запись, если есть
+      try:
+        # Удалить по значению токена
+        # Получаем токен чтобы удалить связку
+        token_data_json = self.r.get(f"refresh_token:{email}")
+        if token_data_json:
+          token_data = json.loads(token_data_json)
+          token_val = token_data.get("refresh_token")
+          if token_val:
+            self.r.delete(f"refresh_token_value:{token_val}")
+      except Exception:
+        logging.exception("Failed to delete reverse mapping for refresh token")
       logging.info(f" Refresh token for user {email} has been deleted")
       return True
     except Exception as ex:
@@ -623,4 +640,15 @@ class DatabaseRedis:
   #  except Exception as ex:
   #    logging.exception("Error in DatabasseRedis.get_token_by_email: ", ex)
   #    return None
+
+  def get_email_by_refresh_token(self, refresh_token: str) -> str | None:
+    """Возвращает email, сопоставленный с переданным значением refresh_token, либо None"""
+    try:
+      email = self.r.get(f"refresh_token_value:{refresh_token}")
+      if email:
+        return email.decode() if isinstance(email, bytes) else email
+      return None
+    except Exception as ex:
+      logging.exception("Error in get_email_by_refresh_token: ", ex)
+      return None
 
