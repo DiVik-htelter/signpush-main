@@ -83,7 +83,7 @@ class TestUserLogic:
     def test_jwt_lifecycle(self, user_instance):
         """Проверка жизненного цикла JWT (создание и валидация)"""
         # Т.к. метод приватный, вызываем через name mangling
-        token = user_instance._User__create_jwt("101")
+        token = user_instance.create_jwt("101")
         assert token is not None
         
         # Проверяем расшифровку

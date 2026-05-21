@@ -9,9 +9,10 @@ import Cookies from 'js-cookie';
 
 export default function PdfReader({file, documentId}) {
     const canvasRef = useRef(null);
+    const pdfCacheCanvasRef = useRef(null);   // ✅ OffscreenCanvas для кэша PDF (синхронно!)
     const isDraggingRef = useRef(false);
     const startPointRef = useRef({ x: 0, y: 0 });
-    const pdfImageRef = useRef(null);
+    const signatureImageRef = useRef(null);     // Кэш подписи
     const [pages, setPages] = useState([1]);
     const [pdf, setPdf] = useState([1]);
     const [currentPage, setCurrentPage] = useState(1);
@@ -49,8 +50,9 @@ export default function PdfReader({file, documentId}) {
 
                 // Render PDF page into canvas context.
                 const renderContext = { canvasContext, viewport };
-                page.render(renderContext);
+                await page.render(renderContext).promise; // АРХИВАЖНО!
                 setPdf(pdf);
+                saveInitialCanvas();
             }
         })();
     }, [file]);
@@ -69,7 +71,7 @@ export default function PdfReader({file, documentId}) {
 
        // Render PDF page into canvas context.
       const renderContext = { canvasContext, viewport };
-      page.render(renderContext);
+      await page.render(renderContext).promise; // АРХИВАЖНО!
       
       setCurrentPage(currentPage.selected + 1);
       saveInitialCanvas();
@@ -95,11 +97,22 @@ export default function PdfReader({file, documentId}) {
         [pdfRef, file]
       );
   const saveInitialCanvas = () => {
+    // ✅ Используем OffscreenCanvas для синхронного хранения PDF
     const canvas = canvasRef.current;
-    if (canvas?.getContext) {
-      const canvasPic = new Image();
-      canvasPic.src = canvas.toDataURL();
-      pdfImageRef.current = canvasPic;
+    if (!canvas) return;
+    
+    if (!pdfCacheCanvasRef.current) {
+      pdfCacheCanvasRef.current = document.createElement('canvas');
+    }
+    
+    const cacheCanvas = pdfCacheCanvasRef.current;
+    cacheCanvas.width = canvas.width;
+    cacheCanvas.height = canvas.height;
+    
+    const cacheCtx = cacheCanvas.getContext('2d');
+    if (cacheCtx) {
+      // ✅ Синхронно копируем содержимое canvas в кэш
+      cacheCtx.drawImage(canvas, 0, 0);
     }
   };
 
@@ -120,7 +133,8 @@ export default function PdfReader({file, documentId}) {
   };
 
   const handlePointerDown = (e) => {
-    if (!pdfImageRef.current) {
+    // ✅ Полагаемся на pdfCacheCanvasRef
+    if (!pdfCacheCanvasRef.current) {
       saveInitialCanvas();
     }
 
@@ -152,7 +166,8 @@ export default function PdfReader({file, documentId}) {
     }
 
     const ctx = canvas.getContext("2d");
-    if (!ctx || !pdfImageRef.current) {
+    const cacheCanvas = pdfCacheCanvasRef.current;
+    if (!ctx || !cacheCanvas) {
       return;
     }
 
@@ -161,8 +176,11 @@ export default function PdfReader({file, documentId}) {
 
     const width = currentX - startX;
     const height = currentY - startY;
+    
+    // ✅ Полностью восстанавливаем PDF из кэша (мгновенно и синхронно)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(pdfImageRef.current, 0, 0);
+    ctx.drawImage(cacheCanvas, 0, 0);
+
     ctx.beginPath();
     ctx.rect(startX, startY, width, height);
     ctx.strokeStyle = "#1B9AFF";
@@ -182,16 +200,26 @@ export default function PdfReader({file, documentId}) {
 
     const canvas = canvasRef.current;
     const canvasContext = canvas.getContext('2d');
+    const cacheCanvas = pdfCacheCanvasRef.current;
+
+    // ✅ Восстанавливаем PDF перед нанесением подписи
+    if (cacheCanvas) {
+      canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+      canvasContext.drawImage(cacheCanvas, 0, 0);
+    }
 
     const canvasPic = new Image();
     canvasPic.src = childData;
-    pdfImageRef.current = canvasPic;
+    signatureImageRef.current = canvasPic; // Записываем подпись отдельно
 
     // Сохраняем данные подписи для отправки на сервер
     setSignatureImageData(childData);
 
     canvasPic.onload = () => {
-      if (squareHeight === 0 || squareHeight === 0 || squareHeight === null || squareWidth === null) {
+      // ✅ Проверяем валидность размеров рамки
+      const isValidRegion = squareHeight !== null && squareHeight !== 0 && squareWidth !== null && squareWidth !== 0;
+
+      if (!isValidRegion) {
         canvasContext.drawImage(canvasPic, 0, 0);
       } else {
         canvasContext.drawImage(canvasPic, squareX, squareY, squareWidth, squareHeight);
@@ -213,11 +241,11 @@ export default function PdfReader({file, documentId}) {
 
       // Render PDF page into canvas context.
      const renderContext = { canvasContext, viewport };
-     page.render(renderContext);
+     await page.render(renderContext).promise; // АРХИВАЖНО: ДОЖДАТЬСЯ РЕНДЕРА!
       
-     if (!pdfImageRef.current) {
-       saveInitialCanvas();
-     }
+     // ✅ Сохраняем свежий, ЧИСТЫЙ слой PDF после загрузки
+     saveInitialCanvas();
+     signatureImageRef.current = null;
 
      // Сбрасываем сохранённые данные подписи
      setSignatureImageData(null);
