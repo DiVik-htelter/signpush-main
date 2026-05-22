@@ -58,15 +58,16 @@ def test_sign_and_verify_full_flow():
     # 4. Подписываем документ
     print("[3] Создание подписи документа...")
     document = "Это тестовый документ для полной проверки цикла подписи"
-    signed_payload = signer.signed_hash(document, private_key_b64, user_info=user_info)
     print("✓ Подпись создана\n")
     
     # 5. Создаём CMS контейнер
     print("[4] Создание CMS контейнера...")
+    doc_hash = signer.hash_document(document)
     cms_der = signer.create_cms_container(
-        signed_payload['signed_attrs_der'],
-        signed_payload['signature'],
-        public_key_b64
+        document_hash=doc_hash,
+        private_key_b64=private_key_b64,
+        public_key_b64=public_key_b64,
+        user_info=user_info
     )
     print(f"✓ CMS контейнер создан ({len(cms_der)} байт)\n")
     

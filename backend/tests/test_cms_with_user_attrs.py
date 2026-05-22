@@ -72,10 +72,12 @@ def test_cms_with_user_attributes():
     # Создаем CMS контейнер
     print(f"\n[6] Создание CMS контейнера...")
     try:
+        doc_hash = signer.hash_document(test_doc)
         cms_der = signer.create_cms_container(
-            signed_payload['signed_attrs_der'],
-            signed_payload['signature'],
-            public_key_b64,
+            document_hash=doc_hash,
+            private_key_b64=private_key_b64,
+            public_key_b64=public_key_b64,
+            user_info=user_info,
             output_filename="test_document.sig"
         )
         print(f"✓ CMS контейнер создан")

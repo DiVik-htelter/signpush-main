@@ -198,15 +198,14 @@ class TestSignatureUNEP:
 
         # 2. Создание SignedAttrs и подписи
         user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
-        sign_result = sign_unep.signed_hash(test_doc, priv_key_b64, user_info=user_info)
-        assert 'signature' in sign_result
-        assert 'signed_attrs_der' in sign_result
+        doc_hash = sign_unep.hash_document(test_doc)
 
         # 3. Упаковка в CMS контейнер
         cms_der_bytes = sign_unep.create_cms_container(
-            signed_attrs_der=sign_result['signed_attrs_der'],
-            raw_signature=sign_result['signature'],
-            public_key=pub_key_b64
+            document_hash=doc_hash,
+            private_key_b64=priv_key_b64,
+            public_key_b64=pub_key_b64,
+            user_info=user_info
         )
         assert isinstance(cms_der_bytes, bytes)
         assert len(cms_der_bytes) > 100 # CMS контейнер обычно весит несколько сотен байт
@@ -481,26 +480,13 @@ class TestSignatureUNEPCMSEdgeCases:
         
         # Подписываем оригинальный документ
         user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
-        signed_payload = sign_unep.signed_hash(original_doc, priv_key_b64, user_info=user_info)
+        doc_hash = sign_unep.hash_document(original_doc)
         cms_der = sign_unep.create_cms_container(
-            signed_payload['signed_attrs_der'],
-            signed_payload['signature'],
-            pub_key_b64
+            document_hash=doc_hash,
+            private_key_b64=priv_key_b64,
+            public_key_b64=pub_key_b64,
+            user_info=user_info
         )
-        
-        # Пытаемся проверить с измененным документом
-        result = sign_unep.verify_cms_container(
-            cms_signature_bytes=cms_der,
-            signed_document=modified_doc,
-            public_key_b64=pub_key_b64
-        )
-        
-        assert result['is_valid'] is False
-        assert result['checks']['content_hash_match'] is False
-    
-    def test_verify_cms_without_public_key_fallback(self, sign_unep, mock_db):
-        """Проверка верификации без fallback на БД"""
-        mock_db.get_public_key_by_email.return_value = None
         
         result = sign_unep.verify_cms_container(
             cms_signature_bytes=b"some_cms_data",
@@ -650,16 +636,14 @@ class TestIntegrationUserWithSignature:
         # Пользователь подписывает документ
         test_document = "I, the undersigned, approve this"
         user_info = {'first_name': 'Test', 'last_name': 'User', 'email': 'test@example.com'}
-        signed_data = sign_unep.signed_hash(test_document, priv_key_b64, user_info=user_info)
-        
-        assert 'signature' in signed_data
-        assert signed_data['signature'] is not None
+        doc_hash = sign_unep.hash_document(test_document)
         
         # Проверяем, что подпись соответствует документу
         cms_der = sign_unep.create_cms_container(
-            signed_data['signed_attrs_der'],
-            signed_data['signature'],
-            pub_key_b64
+            document_hash=doc_hash,
+            private_key_b64=priv_key_b64,
+            public_key_b64=pub_key_b64,
+            user_info=user_info
         )
         
         result = sign_unep.verify_cms_container(

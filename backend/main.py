@@ -716,11 +716,12 @@ async def sign_document_unep(request: SignatureUNEPRequest, token: Optional[str]
             'email': email
         }
         
-        signed_payload = signer.signed_hash(document_for_sign, private_key_b64, user_info=user_info)
+        doc_hash = signer.hash_document(document_for_sign)
         cms_der = signer.create_cms_container(
-            signed_payload['signed_attrs_der'],
-            signed_payload['signature'],
-            public_key_b64,
+            document_hash=doc_hash,
+            private_key_b64=private_key_b64,
+            public_key_b64=public_key_b64,
+            user_info=user_info,
             output_filename=f"document_{request.document_id}.sig"
         )
 

@@ -40,15 +40,16 @@ def analyze_cms_container():
     # Подписываем документ
     print("[2] Подписание тестового документа...")
     test_document = "Тестовый документ для анализа структуры CMS"
-    signed_payload = signer.signed_hash(test_document, private_key_b64, user_info=user_info)
     print("✓ Документ подписан\n")
     
     # Создаем CMS контейнер
     print("[3] Создание CMS контейнера...")
+    doc_hash = signer.hash_document(test_document)
     cms_der = signer.create_cms_container(
-        signed_payload['signed_attrs_der'],
-        signed_payload['signature'],
-        public_key_b64,
+        document_hash=doc_hash,
+        private_key_b64=private_key_b64,
+        public_key_b64=public_key_b64,
+        user_info=user_info,
         output_filename="analyze_document.sig"
     )
     print(f"✓ CMS контейнер создан ({len(cms_der)} байт)\n")
