@@ -1,7 +1,7 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 //import './site.css';
 import './main.css';
-import { useContext, useRef, useState } from "react";
+import { useContext, useRef, useState, useEffect } from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import AuthContext from "../../context/AuthProvider";
 import { useCookies} from 'react-cookie'
@@ -23,6 +23,67 @@ function Login() {
     const location = useLocation()
     const from = location.state?.from?.pathname || '/';
     const LOGIN_URL = 'auth/'; // адрес, куда пойдет запрос на проверку
+
+    useEffect(() => {
+        if (window.YaAuthSuggest) {
+            window.YaAuthSuggest.init(
+                {
+                    client_id: 'd0dd0f1b515f48bc8983269013ae760d', // Замените на ваш реальный client_id от Яндекса
+                    response_type: 'token',
+                    redirect_uri: 'http://localhost:3000' + '/yandex-auth.html'
+                },
+                window.location.origin,
+                {
+                    view: "button",
+                    parentId: "yandex-button-container",
+                    buttonSize: 'm',
+                    buttonView: 'main',
+                    buttonTheme: 'light',
+                    buttonBorderRadius: "0",
+                    buttonIcon: 'ya',
+                }
+            )
+            .then(({handler}) => handler())
+            .then(data => {
+                console.log('Сообщение с токеном', data);
+                // Отправляем токен на наш бэкенд
+                handleYandexAuth(data.access_token);
+            })
+            .catch(error => console.log('Обработка ошибки Яндекса', error));
+        } else {
+            console.log("YaAuthSuggest is not defined");
+        }
+    }, []);
+
+    const handleYandexAuth = async (token) => {
+        setDisabled(true);
+        try {
+            const response = await axios.post(
+                'auth/yandex',
+                JSON.stringify({ token: token })
+            );
+
+            if (response?.data?.status === 0) { 
+                let expires = new Date();
+                expires.setTime(expires.getTime() + 1000000);
+
+                const yandexUserMail = response?.data?.email;
+                setCookie('user', yandexUserMail, { path: '/',  expires}); 
+                setCookie('token', response?.data?.token, { path: '/',  expires});
+
+                setAuth({ user: yandexUserMail }); 
+                setDisabled(false);
+                navigate(from, { replace: true });
+            } else {
+                setErrorMessage(response?.data?.message || 'Не удалось авторизоваться через Яндекс.');
+                setDisabled(false);
+            }
+        } catch (err) {
+            console.log(err);
+            setErrorMessage('Ошибка связи с сервером при Яндекс авторизации!');
+            setDisabled(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         let response;
@@ -113,6 +174,7 @@ function Login() {
                             <button disabled={isLoginActive} className="btn btn-primary modal-login-submit" id="sign-in">
                                 Продолжить
                             </button>
+                            <div id="yandex-button-container" style={{marginTop: '15px'}} align="center"></div>
                         </form>
 
                         <div className="login-signup-link-container">

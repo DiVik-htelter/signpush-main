@@ -209,6 +209,69 @@ async def refresh_token(request: Request):
         return JSONResponse(content={"status": service.GENERAL_ERROR_STATUS, "token": -1, "message": "Error during token refresh"}, status_code=500)
 
 
+class YandexAuthRequest(BaseModel):
+    token: str
+
+@app.post("/api/auth/yandex", summary="Авторизация через Яндекс", tags=["Аутентификация"])
+async def yandex_login(req: YandexAuthRequest):
+    import httpx, os, uuid
+    headers = {"Authorization": f"OAuth {req.token}"}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("https://login.yandex.ru/info?format=json", headers=headers)
+        
+        if resp.status_code != 200:
+            return JSONResponse({"status": service.GENERAL_ERROR_STATUS, "message": "Не удалось авторизоваться через Яндекс"}, status_code=400)
+            
+        ya_data = resp.json()
+        email = ya_data.get("default_email")
+        if not email:
+            return JSONResponse({"status": service.GENERAL_ERROR_STATUS, "message": "Email не найден в Яндекс аккаунте"}, status_code=400)
+        
+        
+        if db.is_original_email(email): # выполнится при первом входе пользователя
+            name = {
+            'firstName': ya_data.get("first_name", "Yandex"),
+            'lastName': ya_data.get("last_name", "User")
+            }
+            random_password = os.urandom(16).hex()
+            flag = db.insert_user(email, random_password, name)
+            if not flag:
+                return JSONResponse({"status": service.GENERAL_ERROR_STATUS, "message": "Ошибка регистрации через Яндекс аккаунт"}, status_code=500)
+        
+        user = service.User(email=email, db_redis=db_redis, db=db)
+        content = user.ya_auth()
+        resp_content = dict(content)
+
+        # Если пришёл refresh_token — отправим его только в httpOnly cookie и удалим из тела ответа
+        refresh_val = None
+        if resp_content.get("status") == service.SUCCESS_STATUS and resp_content.get("refresh_token"):
+            refresh_val = resp_content.pop("refresh_token", None)
+
+        response = JSONResponse(content=resp_content, status_code=200)
+        if refresh_val:
+            # Устанавливаем httpOnly cookie (samesite/secure настраиваются через env)
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_val,
+                httponly=True,
+                secure=cookie_secure,
+                samesite=cookie_samesite,
+                max_age=7*24*3600,
+                path='/'
+            )
+
+        return response
+    except Exception as ex:
+        logging.exception(f"Error setting refresh cookie: {ex}")
+        content = {
+                "status": service.GENERAL_ERROR_STATUS,
+                "token": -1,
+                "message": f"Ошибка при аутентификации: {str(ex)}"
+        }
+        return JSONResponse(content=content, status_code=200)
+
+
 class Paper(BaseModel):
   id: int = Field(
       ..., 

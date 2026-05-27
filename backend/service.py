@@ -145,6 +145,29 @@ class User:
         return None
 
 
+    def ya_auth(self):
+        """ """
+        try:
+            id_user = self.__db.get_user_by_email(self.__email)['id']
+            access_token = self.create_jwt(id_user)
+            refresh_token = self.__create_refresh_token()
+
+            return {
+                    "status" : SUCCESS_STATUS,
+                    "email": self.__email,
+                    "token": access_token,
+                    "refresh_token": refresh_token, 
+                    "message": "Успешный вход!"
+                    }    
+        except Exception as ex:
+            logging.exception("Exception in ya_auth:")
+            return {
+                "status" : GENERAL_ERROR_STATUS,
+                "token": -1,
+                "message": f"Ошибка при аутентификации через Яндекс аккаунт: {str(ex)}"
+            }
+                
+
     def chek_auth(self, password:str):
         """Метод проверяет авторизацию и генерирует ответ на фронт"""
         try:
