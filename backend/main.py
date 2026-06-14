@@ -61,7 +61,7 @@ app.add_middleware(
 )
 
 def check_token(token:str) -> bool:
-    """Сопоставляет токен из запроса с токеном, хранящимся в Redis для данного email. Возвращает True, если токены совпадают, иначе False."""
+    """Проверяет валидность jwt токена и возвращает email пользователя или False"""
     try:
         data = service.User.decoded_jwt(token)
         if data is None:

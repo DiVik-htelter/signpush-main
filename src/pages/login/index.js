@@ -30,7 +30,7 @@ function Login() {
                 {
                     client_id: 'd0dd0f1b515f48bc8983269013ae760d', // Замените на ваш реальный client_id от Яндекса
                     response_type: 'token',
-                    redirect_uri: 'http://localhost:3000' + '/yandex-auth.html'
+                    redirect_uri: 'https://sign-push.ru' + '/yandex-auth.html'
                 },
                 window.location.origin,
                 {

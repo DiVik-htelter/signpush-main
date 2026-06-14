@@ -256,8 +256,6 @@ class SignatureUNEP:
     def __build_signed_attrs(self, message_digest: bytes, user_info: dict | None = None) -> bytes:
         """
         Формирует строго стандартизированный DER-кодированный signedAttrs (RFC 5652 / CAdES-BES).
-        Убраны лишние атрибуты (имя/email), так как они ломают проверку в КриптоПро и Госуслугах.
-        Параметр user_info оставлен для обратной совместимости с другими методами класса.
         """
         message_digest = bytes(message_digest)
         if not isinstance(message_digest, bytes) or len(message_digest) != 32:
@@ -281,7 +279,6 @@ class SignatureUNEP:
             'values': [cms.Time({'utc_time': datetime.now(timezone.utc)})]
         })
 
-        # Оставляем только эти три стандартных атрибута!
         attrs_list = [content_type_attr, message_digest_attr, signing_time_attr]
 
         class SignedAttributes(SetOf):
@@ -487,6 +484,23 @@ class SignatureUNEP:
             if len(signer_infos) == 0:
                 raise ValueError("В CMS отсутствует signer_infos")
 
+            # Извлечение информации о субъекте из сертификата, если он приложен (CAdES / CMS)
+            cert_subject_info = {}
+            if signed_data['certificates']:
+                for cert_choice in signed_data['certificates']:
+                    if cert_choice.name == 'certificate':
+                        cert = cert_choice.chosen
+                        subject = cert.subject.native
+                        if isinstance(subject, dict):
+                            cert_subject_info = {
+                                'common_name': subject.get('common_name'),
+                                'email_address': subject.get('email_address'),
+                                'given_name': subject.get('given_name'),
+                                'surname': subject.get('surname'),
+                                'title': subject.get('title')
+                            }
+                        break
+
             signer_info: cms.SignerInfo = signer_infos[0]
             signed_attrs = signer_info['signed_attrs']
             raw_signature = signer_info['signature'].native
@@ -585,6 +599,7 @@ class SignatureUNEP:
                     'signature_oid': sign_oid,
                     'signature_hex': raw_signature.hex(),
                     'public_key_source': public_key_source,
+                    'subject': cert_subject_info
                 },
                 'attrs': attrs_list,
             }
@@ -633,16 +648,27 @@ class SignatureUNEP:
             private_key_bytes = bytearray(base64.b64decode(private_key_b64))
 
             # 1. Сборка подписанных атрибутов
-            signed_attrs_der = self.__build_signed_attrs(document_hash)
+            signed_attrs_der = self.__build_signed_attrs(document_hash, user_info=user_info)
             signed_attrs = cms.CMSAttributes.load(signed_attrs_der)
 
             digest_algo = {'algorithm': '1.2.643.7.1.1.2.2'}     # gost3411-2012-256
             sign_algo = {'algorithm': '1.2.643.7.1.1.3.2'}       # gost3410-2012-256
 
-            subject = x509.Name.build({
+            # Формируем расширенный сертификат с информацией о субъекте, необходимой для КриптоПро
+            subject_dict = {
                 'common_name': self.__email,
                 'email_address': self.__email
-            })
+            }
+            if user_info:
+                if user_info.get('first_name'):
+                    subject_dict['given_name'] = user_info['first_name']
+                if user_info.get('last_name'):
+                    subject_dict['surname'] = user_info['last_name']
+                    # Можно собрать ФИО для common_name, если КриптоПро берет оттуда
+                    subject_dict['common_name'] = f"{user_info['last_name']} {user_info['first_name']}".strip()
+                subject_dict['title'] = user_info.get('title') or 'Владелец подписи (УНЭП)'
+
+            subject = x509.Name.build(subject_dict)
 
             # 2. Инициализируем SignerInfo с временной заглушкой вместо подписи.
             # Это необходимо, чтобы asn1crypto выстроил внутреннюю структуру и сортировку атрибутов.
