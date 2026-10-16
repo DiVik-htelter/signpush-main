@@ -7,7 +7,7 @@ from time import time
 from hashlib import sha256
 from typing import List, Optional, Dict, Any
 from urllib.parse import urlparse
-from fastapi import FastAPI, BackgroundTasks, Header, Request
+from fastapi import FastAPI, BackgroundTasks, Header, Request, APIRouter
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,11 +35,22 @@ app = FastAPI(
     docs_url="/api/swagger",
     redoc_url="/api/redoc"
 )
+
+from routers.users import router_users
+from routers.documents import router_documents
+from routers.auth import router_auth
+
+app.include_router(router_auth)
+app.include_router(router_users)
+app.include_router(router_documents)
+
 db = Database()
 db_redis = DatabaseRedis()
 
 # Разрешенные источники (для credentials нельзя использовать "*")
 _default_origins = [
+    "http://localhost",
+    "http://127.0.0.1",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
@@ -155,6 +166,8 @@ async def chek_login(old_user: oldUser):
     except Exception as ex:
         logging.exception(f"Error setting refresh cookie: {ex}")
         return JSONResponse(content=content, status_code=200)
+        #return HTTPExeption(status_code=500, detail="Ошибка при установке refresh cookie")
+    
 
 
 @app.post("/api/auth/refresh", summary="Обновление access токена по refresh token", tags=["Аутентификация"])

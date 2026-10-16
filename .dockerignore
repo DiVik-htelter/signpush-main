@@ -1,0 +1,12 @@
+node_modules
+build
+.git
+.gitignore
+*.zip
+*.log
+.venv
+*Деплой*
+*деплой*
+backend/__pycache__
+backend/.pytest_cache
+backend/tests

@@ -1,5 +1,9 @@
-# Используем Python 3.11
-FROM python:3.11-slim
+# Используем стабильный Python 3.11 на базе Debian Bookworm
+FROM python:3.11-slim-bookworm
+
+# Настраиваем надежное зеркало репозиториев Debian
+RUN sed -i 's|deb.debian.org|mirror.yandex.ru|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's|deb.debian.org|mirror.yandex.ru|g' /etc/apt/sources.list
 
 # Устанавливаем системные зависимости
 # libpq-dev для postgres

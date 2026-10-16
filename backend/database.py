@@ -230,7 +230,6 @@ class Database:
       raise ConnectionError("No Activate database connection")
     try:
       with self.__connection.cursor() as cursor:
-        # Параметризованный запрос - безопасен от SQL-инъекций
         cursor.execute("DELETE FROM documents WHERE id = %s;", (id,))
         self.__connection.commit() 
         logging.info(f" Document id: {id}, deleted success")

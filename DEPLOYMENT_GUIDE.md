@@ -55,7 +55,7 @@ git clone https://github.com/YOUR_USERNAME/signpush-main.git .
 **Вариант B: Через SCP (скопировать со своего компьютера)**
 ```bash
 # Выполните на локальном компьютере:
-scp -r d:\4_cours\diplom\signpush-main/* root@YOUR_VPS_IP:/opt/signpush/
+scp -r d:\Бакалавр\4_cours\diplom\signpush-main/* root@YOUR_VPS_IP:/opt/signpush/
 ```
 
 Проверьте, что всё загруженно:
